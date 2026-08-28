@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["gru1"],
+  "ignoreCommand": "bash -c '[ \"$VERCEL_ENV\" = production ] && exit 1 || exit 0'",
+  "crons": [{ "path": "/api/cron", "schedule": "0 3 * * *" }]
+}
