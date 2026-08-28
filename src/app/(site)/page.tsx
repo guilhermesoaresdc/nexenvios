@@ -31,7 +31,7 @@ import {
 
 export const revalidate = 3600
 
-const NUMERO_WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP ?? '5511999999999'
+const NUMERO_WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP ?? '5588992640298'
 const MENSAGEM =
   'Olá! Vim pela landing page e quero saber mais sobre disparos em massa.'
 const LINK_WHATSAPP = `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(MENSAGEM)}`
