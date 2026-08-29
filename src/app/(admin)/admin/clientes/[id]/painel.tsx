@@ -70,7 +70,15 @@ export function Cadastro({ cliente }: { cliente: ClienteDetalhado }) {
             rotulo="Limite de confiança"
             dica="Quanto o saldo pode furar antes de o disparo ser barrado."
           >
-            <Entrada name="limite" type="number" min={0} step="0.01" defaultValue={cliente.limite} />
+            {/* `numeric` do Postgres chega como "200.0000"; o campo mostra o
+                que a pessoa digitaria. */}
+            <Entrada
+              name="limite"
+              type="number"
+              min={0}
+              step="0.01"
+              defaultValue={Number(cliente.limite).toFixed(2)}
+            />
           </Campo>
         </div>
 
@@ -188,8 +196,15 @@ export function Convite({ link }: { link: string }) {
   )
 }
 
-/** Convidar mais alguém para a conta do cliente. */
-Convite.Formulario = function FormularioDeConvite({ orgId }: { orgId: string }) {
+/**
+ * Convidar mais alguém para a conta do cliente.
+ *
+ * Exportação nomeada, e não `Convite.Formulario`: um módulo `'use client'`
+ * exporta REFERÊNCIAS para o servidor, não funções, e a propriedade estática
+ * chega como `undefined` do outro lado — o React derruba a página inteira com
+ * "element type is invalid".
+ */
+export function FormularioDeConvite({ orgId }: { orgId: string }) {
   const [estado, acao] = useActionState(convidarUsuario, undefined)
 
   return (

@@ -9,3 +9,4 @@ build
 next-env.d.ts
 .DS_Store
 src/db/migrations-embutidas.ts
+.env.local.teste

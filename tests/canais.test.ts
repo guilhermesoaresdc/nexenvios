@@ -269,3 +269,57 @@ describe('Provedor genérico', () => {
     if (!r.ok) expect(r.reenviavel).toBe(true)
   })
 })
+
+describe('montarConfig', () => {
+  it('aninha o genérico de SMS sob `generico`, e não no topo', async () => {
+    /*
+     * Esta é a forma de um bug que passou por build, typecheck e tela de
+     * canais sem reclamar: `enviarSms` procura a configuração em
+     * `config.generico`, e espalhá-la no topo fazia TODO envio por provedor
+     * genérico ser recusado com "canal não configurado" — mensagem nenhuma
+     * saindo, sem erro visível em lugar nenhum.
+     */
+    const { montarConfig } = await import('@/lib/channels')
+
+    const alvo = montarConfig('sms', 'generico', {
+      url: 'https://provedor.x/enviar',
+      corpoTemplate: '{"to":"{{para}}"}',
+    })
+
+    expect(alvo).not.toBeNull()
+    expect(alvo!.canal).toBe('sms')
+    expect(alvo!.provider).toBe('generico')
+    // O adaptador precisa achar a URL exatamente aqui.
+    expect((alvo!.config as { generico?: { url?: string } }).generico?.url).toBe(
+      'https://provedor.x/enviar',
+    )
+  })
+
+  it('mantém o SMS nomeado com os campos no topo', async () => {
+    const { montarConfig } = await import('@/lib/channels')
+    const alvo = montarConfig('sms', 'smsdev', { apiKey: 'k' })
+    expect((alvo!.config as { apiKey?: string }).apiKey).toBe('k')
+  })
+
+  it('monta cada canal com o provedor que ele aceita', async () => {
+    const { montarConfig } = await import('@/lib/channels')
+
+    expect(montarConfig('whatsapp_oficial', 'meta_cloud', { phoneNumberId: '1' })).not.toBeNull()
+    expect(montarConfig('whatsapp_nao_oficial', 'evolution', { url: 'x' })).not.toBeNull()
+    expect(montarConfig('rcs', 'generico', { url: 'x' })).not.toBeNull()
+    expect(montarConfig('voz', 'generico', { url: 'x' })).not.toBeNull()
+
+    // Combinação que não existe devolve null em vez de montar algo errado.
+    expect(montarConfig('sms', 'evolution', {})).toBeNull()
+    expect(montarConfig('voz', 'smsdev', {})).toBeNull()
+  })
+
+  it('canalConfigurado enxerga o genérico aninhado', async () => {
+    const { canalConfigurado, montarConfig } = await import('@/lib/channels')
+    const alvo = montarConfig('sms', 'generico', { url: 'https://x' })!
+    expect(canalConfigurado(alvo)).toBe(true)
+
+    const vazio = montarConfig('sms', 'generico', {})!
+    expect(canalConfigurado(vazio)).toBe(false)
+  })
+})

@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { dataHora, moeda, numero, quando } from '@/lib/ui'
-import { Cadastro, Convite, Credito, Status } from './painel'
+import { Cadastro, Convite, Credito, FormularioDeConvite, Status } from './painel'
 
 export const metadata: Metadata = { title: 'Cliente' }
 export const dynamic = 'force-dynamic'
@@ -200,7 +200,7 @@ export default async function Cliente({
               </tbody>
             </Tabela>
             <div className="border-t border-line p-6">
-              <Convite.Formulario orgId={cliente.id} />
+              <FormularioDeConvite orgId={cliente.id} />
             </div>
           </Pad>
         </div>

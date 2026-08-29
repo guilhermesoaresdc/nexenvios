@@ -148,7 +148,8 @@ export type CriacaoDaCampanha =
 
 export async function criarCampanha(
   orgId: string,
-  usuarioId: string,
+  /** Nulo quando a campanha nasce pela API pública, sem usuário logado. */
+  usuarioId: string | null,
   dados: DadosDaCampanha,
 ): Promise<CriacaoDaCampanha> {
   const [org] = await db
@@ -249,7 +250,7 @@ export async function criarCampanha(
       estimatedCost: String(orcamento.total),
       materialized: false,
       materializeAt: inicio,
-      createdBy: usuarioId,
+      createdBy: usuarioId ?? null,
     })
     .returning({ id: campaigns.id })
 

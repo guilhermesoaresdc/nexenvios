@@ -33,7 +33,8 @@ const LOTE = 500
 
 export async function importarContatos(opcoes: {
   orgId: string
-  autorId: string
+  /** Nulo quando a importação vem da API pública, sem usuário logado. */
+  autorId?: string | null
   linhas: LinhaParaImportar[]
   listaId?: string | null
   etiquetas?: string[]
@@ -140,7 +141,7 @@ export async function importarContatos(opcoes: {
 /** Registra o resultado para a tela poder explicar o número depois. */
 export async function registrarImportacao(opcoes: {
   orgId: string
-  autorId: string
+  autorId?: string | null
   arquivo: string | null
   listaId: string | null
   invalidos: number
@@ -157,7 +158,7 @@ export async function registrarImportacao(opcoes: {
     invalid: opcoes.invalidos,
     optedOut: opcoes.resultado.descadastrados,
     sample: (opcoes.amostra ?? []).slice(0, 10),
-    createdBy: opcoes.autorId,
+    createdBy: opcoes.autorId || null,
   })
 }
 
