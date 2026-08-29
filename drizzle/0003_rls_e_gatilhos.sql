@@ -9,8 +9,22 @@
 -- entram — e não em código de aplicação.
 
 DO $$
-DECLARE t text;
+DECLARE
+  t text;
+  papeis text[] := ARRAY[]::text[];
 BEGIN
+  /*
+   * `anon` e `authenticated` são papéis do Supabase e não existem num Postgres
+   * comum. Revogar deles sem conferir derruba a migration inteira em qualquer
+   * banco local com "role does not exist" — e o desenvolvedor perde meia hora
+   * atrás de um erro que não é dele.
+   */
+  FOREACH t IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = t) THEN
+      papeis := papeis || t;
+    END IF;
+  END LOOP;
+
   FOREACH t IN ARRAY ARRAY[
     'organizations','users','sessions','password_tokens','credit_ledger',
     'channel_prices','audit_log','system_settings','contacts','contact_lists',
@@ -20,7 +34,13 @@ BEGIN
   ] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
-    EXECUTE format('REVOKE ALL ON TABLE %I FROM anon, authenticated', t);
+    IF array_length(papeis, 1) > 0 THEN
+      EXECUTE format(
+        'REVOKE ALL ON TABLE %I FROM %s',
+        t,
+        (SELECT string_agg(quote_ident(p), ', ') FROM unnest(papeis) AS p)
+      );
+    END IF;
   END LOOP;
 END $$;
 

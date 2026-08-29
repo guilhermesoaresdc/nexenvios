@@ -93,7 +93,17 @@ export function montarConfig(
       if (provider === 'generico') return { canal, provider, config: c as ConfigGenerico }
       return null
     case 'sms':
-      if (provider === 'smsdev' || provider === 'comtele' || provider === 'generico') {
+      /*
+       * O SMS genérico vai ANINHADO em `generico`, e não espalhado no topo:
+       * `enviarSms` procura a configuração ali dentro. Espalhar fazia o
+       * adaptador não achar a URL e recusar todo envio com "canal não
+       * configurado" — sem erro no build, sem erro na tela de canais, só
+       * mensagem nenhuma saindo.
+       */
+      if (provider === 'generico') {
+        return { canal, provider, config: { provider, generico: c as ConfigGenerico } }
+      }
+      if (provider === 'smsdev' || provider === 'comtele') {
         return { canal, provider, config: { provider, ...(c as object) } as ConfigSms }
       }
       return null

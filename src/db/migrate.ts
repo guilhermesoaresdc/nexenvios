@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import postgres from 'postgres'
+import { opcoesDeConexao } from './conexao'
 
 /**
  * Aplicador de migrations.
@@ -12,11 +13,7 @@ import postgres from 'postgres'
  */
 
 export async function migrar(url: string, pasta = 'drizzle'): Promise<string[]> {
-  const sql = postgres(url, {
-    max: 1,
-    ssl: url.includes('localhost') ? false : { rejectUnauthorized: false },
-    onnotice: () => {},
-  })
+  const sql = postgres(url, opcoesDeConexao(url, { max: 1 }))
 
   try {
     await sql`

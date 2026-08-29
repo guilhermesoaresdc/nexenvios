@@ -27,7 +27,12 @@ export type LinhaDeCampanha = {
   materializada: boolean
 }
 
-const COLUNAS = sql`
+/*
+ * Função e não constante: um `sql\`…\`` no topo do módulo é avaliado no
+ * import, e isso abriria a conexão com o banco só por alguém ter importado o
+ * arquivo — o que quebra `next build` em ambiente sem DATABASE_URL.
+ */
+const colunas = () => sql`
   c.id, c.name AS nome, c.channel AS canal, c.status, c.total,
   c.pending AS pendentes, c.sent AS enviados, c.delivered AS entregues,
   c.read AS lidos, c.replied AS respostas, c.failed AS falhas,
@@ -45,7 +50,7 @@ export async function listarCampanhas(
   const { status, canal, busca, limite = 30, pular = 0 } = opcoes
 
   return sql<LinhaDeCampanha[]>`
-    SELECT ${COLUNAS}
+    SELECT ${colunas()}
       FROM campaigns c
       LEFT JOIN users u ON u.id = c.created_by
      WHERE c.org_id = ${orgId}
@@ -90,7 +95,7 @@ export async function verCampanha(
   campanhaId: string,
 ): Promise<CampanhaDetalhada | null> {
   const [linha] = await sql<CampanhaDetalhada[]>`
-    SELECT ${COLUNAS},
+    SELECT ${colunas()},
            c.body AS corpo, c.media_url AS "mediaUrl", cc.label AS "canalNome",
            c.rate_per_minute AS ritmo, c.jitter_ms AS jitter,
            c.quiet_start AS "janelaInicio", c.quiet_end AS "janelaFim",

@@ -31,7 +31,7 @@ import {
 
 export const revalidate = 3600
 
-const NUMERO_WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP ?? '5511999999999'
+const NUMERO_WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP ?? '5588992640298'
 const MENSAGEM =
   'Olá! Vim pela landing page e quero saber mais sobre disparos em massa.'
 const LINK_WHATSAPP = `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(MENSAGEM)}`
@@ -269,7 +269,7 @@ export default function Landing() {
                   </tr>
                 </thead>
                 <tbody className="max-md:block">
-                  {CANAIS.map(({ codigo, nome, Icone, descricao, status }, i) => (
+                  {CANAIS.map(({ codigo, nome, Icone, descricao, status }) => (
                     <tr
                       key={codigo}
                       className="transition-colors hover:bg-blue/4 max-md:block max-md:border-b max-md:border-line max-md:px-[18px] max-md:py-5 max-md:last:border-0"
