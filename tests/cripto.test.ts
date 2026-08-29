@@ -43,7 +43,7 @@ describe('criptografar', () => {
      */
     const virarByte = (b64: string, posicao: number) => {
       const bytes = Buffer.from(b64, 'base64url')
-      bytes[posicao] ^= 0xff
+      bytes.writeUInt8(bytes.readUInt8(posicao) ^ 0xff, posicao)
       return bytes.toString('base64url')
     }
 

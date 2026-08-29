@@ -125,6 +125,8 @@ export type CampanhaEmCurso = {
   pendentes: number
   enviados: number
   entregues: number
+  lidos: number
+  respondidos: number
   falhas: number
   criadaEm: Date
   agendadaPara: Date | null
@@ -134,7 +136,8 @@ export async function campanhasEmCurso(orgId: string, limite = 5): Promise<Campa
   return sql<CampanhaEmCurso[]>`
     SELECT id, name AS nome, channel AS canal, status::text AS status,
            total, pending AS pendentes, sent AS enviados,
-           delivered AS entregues, failed AS falhas,
+           delivered AS entregues, read AS lidos, replied AS respondidos,
+           failed AS falhas,
            created_at AS "criadaEm", scheduled_at AS "agendadaPara"
       FROM campaigns
      WHERE org_id = ${orgId}
@@ -142,4 +145,25 @@ export async function campanhasEmCurso(orgId: string, limite = 5): Promise<Campa
      ORDER BY created_at DESC
      LIMIT ${limite}
   `
+}
+
+export type PrimeirosPassos = { temCanal: boolean; temContato: boolean; temEnvio: boolean }
+
+/**
+ * O que a conta já tem — decide entre o painel e o onboarding.
+ *
+ * `EXISTS` em vez de `count(*)`: a pergunta é "existe algum?", e assim o
+ * Postgres para no primeiro registro em vez de varrer a tabela de envios
+ * inteira só para descobrir que ela não está vazia.
+ */
+export async function primeirosPassos(orgId: string): Promise<PrimeirosPassos> {
+  const [linha] = await sql<PrimeirosPassos[]>`
+    SELECT
+      EXISTS (SELECT 1 FROM channel_configs
+               WHERE (org_id = ${orgId} OR org_id IS NULL) AND active) AS "temCanal",
+      EXISTS (SELECT 1 FROM contacts WHERE org_id = ${orgId}) AS "temContato",
+      EXISTS (SELECT 1 FROM dispatches WHERE org_id = ${orgId}) AS "temEnvio"
+  `
+
+  return linha ?? { temCanal: false, temContato: false, temEnvio: false }
 }
