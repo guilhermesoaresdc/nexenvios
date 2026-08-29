@@ -35,6 +35,8 @@ type Item = {
   Icone: (p: { className?: string }) => React.ReactElement
   /** Só para quem administra a conta. */
   soAdmin?: boolean
+  /** Só para o Administrador Nex — suporte não mexe em preço nem provedor. */
+  soPoderTotal?: boolean
 }
 
 const DO_CLIENTE: Item[] = [
@@ -50,9 +52,11 @@ const DO_CLIENTE: Item[] = [
 const DA_NEX: Item[] = [
   { href: '/admin', texto: 'Visão geral', Icone: IcPainel },
   { href: '/admin/clientes', texto: 'Clientes', Icone: IcClientes },
+  { href: '/admin/usuarios', texto: 'Usuários', Icone: IcContatos },
+  { href: '/admin/equipe', texto: 'Time Nex', Icone: IcConfig },
   { href: '/admin/envios', texto: 'Envios', Icone: IcHistorico },
-  { href: '/admin/precos', texto: 'Preços', Icone: IcSaldo },
-  { href: '/admin/provedores', texto: 'Provedores', Icone: IcCanais },
+  { href: '/admin/precos', texto: 'Preços', Icone: IcSaldo, soPoderTotal: true },
+  { href: '/admin/provedores', texto: 'Provedores', Icone: IcCanais, soPoderTotal: true },
 ]
 
 export type DadosDaCasca = {
@@ -61,6 +65,9 @@ export type DadosDaCasca = {
   papel: string
   orgNome: string
   orgSaldo: string
+  /** Superadmin ou suporte — é quem vê o atalho para a administração. */
+  isTimeNex: boolean
+  /** Só o superadmin mexe em crédito, preço e provedor da plataforma. */
   isSuperadmin: boolean
   isAdmin: boolean
   personificando: boolean
@@ -86,7 +93,7 @@ export function Navegacao({
   const [aberto, setAberto] = useState(false)
 
   const itens = (area === 'nex' ? DA_NEX : DO_CLIENTE).filter(
-    (i) => !i.soAdmin || usuario.isAdmin,
+    (i) => (!i.soAdmin || usuario.isAdmin) && (!i.soPoderTotal || usuario.isSuperadmin),
   )
 
   const links = (
@@ -115,7 +122,7 @@ export function Navegacao({
         })}
       </ul>
 
-      {usuario.isSuperadmin ? (
+      {usuario.isTimeNex ? (
         <div className="mt-6 border-t border-white/10 pt-5">
           <p className="mb-2 px-3.5 font-mono text-[.66rem] tracking-[.1em] text-[#7186b3] uppercase">
             {area === 'nex' ? 'Sua conta' : 'Time Nex'}

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { exigirSuperadmin } from '@/lib/auth/atual'
+import { exigirTimeNex } from '@/lib/auth/atual'
 import { listarClientes } from '@/db/queries/admin'
 import type { OrgStatus } from '@/db/schema/enums'
 import { entrarNaConta } from '@/lib/auth/visita'
@@ -42,7 +42,7 @@ export default async function Clientes({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  await exigirSuperadmin()
+  const eu = await exigirTimeNex()
   const p = await searchParams
 
   const busca = typeof p.busca === 'string' ? p.busca : undefined
@@ -76,7 +76,7 @@ export default async function Clientes({
       <Titulo
         titulo="Clientes"
         descricao="Cada conta da Nex Envios: consumo, saldo e acesso."
-        acao={<BotaoLink href="/admin/clientes/novo">Novo cliente</BotaoLink>}
+        acao={eu.isSuperadmin ? <BotaoLink href="/admin/clientes/novo">Novo cliente</BotaoLink> : null}
       />
 
       <Pad className="mb-5 p-4">
@@ -118,7 +118,7 @@ export default async function Clientes({
                 ? 'Tente outro termo ou limpe o filtro para ver a lista inteira.'
                 : 'Cadastre o primeiro cliente para começar a operar disparos por ele.'
             }
-            acao={<BotaoLink href="/admin/clientes/novo">Novo cliente</BotaoLink>}
+            acao={eu.isSuperadmin ? <BotaoLink href="/admin/clientes/novo">Novo cliente</BotaoLink> : null}
           />
         ) : (
           <Tabela>

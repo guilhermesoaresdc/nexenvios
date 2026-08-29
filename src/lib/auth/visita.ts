@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { auditLog, organizations } from '@/db/schema'
-import { exigirSuperadmin, exigirUsuario } from './atual'
+import { exigirTimeNex, exigirUsuario } from './atual'
 import { lerTokenSessao } from './cookies'
 import { personificar } from './sessao'
 
@@ -19,7 +19,7 @@ import { personificar } from './sessao'
  */
 
 export async function entrarNaConta(orgId: string): Promise<void> {
-  const usuario = await exigirSuperadmin()
+  const usuario = await exigirTimeNex()
   const token = await lerTokenSessao()
   if (!token) redirect('/entrar')
 

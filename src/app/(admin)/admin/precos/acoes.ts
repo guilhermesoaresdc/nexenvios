@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { db } from '@/db'
 import { auditLog, channelPrices } from '@/db/schema'
 import { channelEnum } from '@/db/schema/enums'
-import { exigirSuperadmin } from '@/lib/auth/atual'
+import { exigirPoderTotal, exigirTimeNex } from '@/lib/auth/atual'
 
 export type Estado = { erro?: string; ok?: string } | undefined
 
@@ -15,7 +15,8 @@ const preco = z.coerce.number().min(0, 'O preço não pode ser negativo.').max(9
 
 /** Preço padrão da plataforma — vale para todo cliente sem exceção própria. */
 export async function salvarPrecoPadrao(_anterior: Estado, form: FormData): Promise<Estado> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
 
   const dados = z
     .object({ canal, preco })
@@ -52,7 +53,8 @@ export async function salvarPrecoPadrao(_anterior: Estado, form: FormData): Prom
 
 /** Exceção de preço para um cliente específico. */
 export async function salvarExcecao(_anterior: Estado, form: FormData): Promise<Estado> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
 
   const dados = z
     .object({ orgId: z.string().uuid('Escolha um cliente.'), canal, preco })
@@ -91,7 +93,8 @@ export async function salvarExcecao(_anterior: Estado, form: FormData): Promise<
 }
 
 export async function removerExcecao(id: string): Promise<void> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
 
   /*
    * `isNotNull(orgId)` no WHERE não é zelo: a linha de preço PADRÃO tem

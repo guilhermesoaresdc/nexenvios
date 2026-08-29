@@ -10,6 +10,7 @@ import { pgEnum } from 'drizzle-orm/pg-core'
 export const orgStatusEnum = pgEnum('org_status', ['ativo', 'suspenso', 'cancelado'])
 export const userRoleEnum = pgEnum('user_role', [
   'superadmin',
+  'suporte',
   'admin',
   'operador',
   'visualizador',
@@ -132,7 +133,23 @@ export const STATUS_ENVIO_LABEL: Record<DispatchStatus, string> = {
 
 export const PAPEL_LABEL: Record<UserRole, string> = {
   superadmin: 'Administrador Nex',
+  suporte: 'Suporte Nex',
   admin: 'Administrador da conta',
   operador: 'Operador',
   visualizador: 'Visualizador',
 }
+
+/** O que cada papel pode, em uma frase — a tela mostra isto ao escolher. */
+export const PAPEL_EXPLICA: Record<UserRole, string> = {
+  superadmin: 'Tudo: clientes, crédito, preços e provedores da plataforma.',
+  suporte: 'Vê todos os clientes e cuida de acesso. Não mexe em crédito, preço nem provedor.',
+  admin: 'Administra a conta do cliente: canais, equipe e chaves de API.',
+  operador: 'Cria e acompanha disparos. Não mexe em canais nem em equipe.',
+  visualizador: 'Só leitura.',
+}
+
+/** Os papéis do time Nex Envios. Só um superadmin concede qualquer um deles. */
+export const PAPEIS_DA_NEX: readonly UserRole[] = ['superadmin', 'suporte']
+
+/** Os papéis que existem dentro da conta de um cliente. */
+export const PAPEIS_DO_CLIENTE: readonly UserRole[] = ['admin', 'operador', 'visualizador']

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { exigirSuperadmin } from '@/lib/auth/atual'
+import { exigirTimeNex } from '@/lib/auth/atual'
 import { enviosGlobais, listarClientes } from '@/db/queries/admin'
 import { CANAL_CURTO, STATUS_ENVIO_LABEL, type DispatchStatus } from '@/db/schema/enums'
 import { ERRO_LABEL, type CodigoErro } from '@/lib/channels/tipos'
@@ -31,7 +31,7 @@ export default async function Envios({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  await exigirSuperadmin()
+  await exigirTimeNex()
   const p = await searchParams
 
   const orgId = typeof p.cliente === 'string' && p.cliente ? p.cliente : undefined

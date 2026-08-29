@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { channelEnum } from '@/db/schema/enums'
-import { exigirSuperadmin } from '@/lib/auth/atual'
+import { exigirPoderTotal, exigirTimeNex } from '@/lib/auth/atual'
 import { religarCanal, removerCanal, salvarCanal } from '@/lib/canais/servico'
 
 export type Estado = { erro?: string; ok?: string } | undefined
@@ -22,7 +22,8 @@ const guardar = z.object({
  * que a tela avisa em amarelo antes de salvar.
  */
 export async function guardarProvedor(_anterior: Estado, form: FormData): Promise<Estado> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
 
   const dados = guardar.safeParse({
     configId: form.get('configId') ?? '',
@@ -57,13 +58,15 @@ export async function guardarProvedor(_anterior: Estado, form: FormData): Promis
 }
 
 export async function apagarProvedor(configId: string): Promise<void> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
   await removerCanal(null, configId, admin.id)
   revalidatePath('/admin/provedores')
 }
 
 export async function religar(configId: string): Promise<void> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
   await religarCanal(configId, admin.id)
   revalidatePath('/admin/provedores')
 }

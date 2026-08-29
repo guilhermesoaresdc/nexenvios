@@ -23,6 +23,7 @@ export default async function LayoutDoApp({ children }: { children: React.ReactN
         papel: usuario.personificando ? 'Time Nex · visitando' : PAPEL_LABEL[usuario.role],
         orgNome: usuario.orgName,
         orgSaldo: usuario.credits,
+        isTimeNex: usuario.isTimeNex,
         isSuperadmin: usuario.isSuperadmin,
         isAdmin: usuario.isAdmin,
         personificando: usuario.personificando,

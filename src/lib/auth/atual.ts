@@ -45,13 +45,42 @@ export async function exigirAdmin(): Promise<UsuarioAutenticado> {
 }
 
 /**
- * Time Nex Envios. A restrição não depende do menu estar escondido: quem
- * digitar /admin na barra de endereços cai no painel do próprio cliente.
+ * Time Nex Envios — superadmin ou suporte. Porta de entrada do /admin.
+ *
+ * A restrição não depende do menu estar escondido: quem digitar /admin na
+ * barra de endereços cai no painel do próprio cliente.
+ */
+export async function exigirTimeNex(): Promise<UsuarioAutenticado> {
+  const usuario = await exigirUsuario()
+  if (!usuario.isTimeNex) redirect('/painel')
+  return usuario
+}
+
+/**
+ * Só superadmin.
+ *
+ * Guarda o que move dinheiro (crédito, preço) e o que afeta todos os clientes
+ * de uma vez (provedor da plataforma, criar e suspender cliente). Suporte que
+ * cair aqui volta para /admin, que é uma tela que ele pode ver.
  */
 export async function exigirSuperadmin(): Promise<UsuarioAutenticado> {
   const usuario = await exigirUsuario()
-  if (!usuario.isSuperadmin) redirect('/painel')
+  if (!usuario.isSuperadmin) redirect('/admin')
   return usuario
+}
+
+/**
+ * A mesma checagem, para dentro de uma server action.
+ *
+ * `exigirSuperadmin` redireciona, o que numa action vira uma navegação
+ * silenciosa em vez de uma mensagem. Aqui o erro sobe e a tela explica.
+ */
+export function exigirPoderTotal(usuario: UsuarioAutenticado): void {
+  if (!usuario.isSuperadmin) {
+    throw new Error(
+      'Esta ação é só para Administrador Nex. Seu acesso de suporte não move crédito nem configuração da plataforma.',
+    )
+  }
 }
 
 /** Quem só lê não escreve. Chamado no começo de toda server action. */

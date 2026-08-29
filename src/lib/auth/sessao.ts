@@ -21,8 +21,15 @@ export type UsuarioAutenticado = {
   name: string
   email: string
   role: UserRole
-  /** Time Nex Envios: enxerga todos os clientes. */
+  /** Manda em tudo: clientes, crédito, preços e provedores da plataforma. */
   isSuperadmin: boolean
+  /**
+   * Time Nex Envios — superadmin ou suporte.
+   *
+   * É quem enxerga todos os clientes. A diferença entre os dois está no que
+   * pode ESCREVER: suporte cuida de acesso, superadmin move dinheiro.
+   */
+  isTimeNex: boolean
   /** Administra a própria conta (ou é superadmin). */
   isAdmin: boolean
   /** Só leitura. */
@@ -112,9 +119,10 @@ export async function validarSessao(token: string): Promise<UsuarioAutenticado |
   }
 
   const isSuperadmin = linha.role === 'superadmin'
-  // Personificação só vale para superadmin. Se o papel mudou depois que a
+  const isTimeNex = isSuperadmin || linha.role === 'suporte'
+  // Personificação só vale para o time Nex. Se o papel mudou depois que a
   // sessão foi aberta, o acting_org_id vira letra morta na hora.
-  const alvo = isSuperadmin && linha.sessao.actingOrgId ? linha.sessao.actingOrgId : linha.homeOrgId
+  const alvo = isTimeNex && linha.sessao.actingOrgId ? linha.sessao.actingOrgId : linha.homeOrgId
 
   const [org] = await db
     .select({
@@ -137,7 +145,8 @@ export async function validarSessao(token: string): Promise<UsuarioAutenticado |
     email: linha.email,
     role: linha.role,
     isSuperadmin,
-    isAdmin: isSuperadmin || linha.role === 'admin',
+    isTimeNex,
+    isAdmin: isTimeNex || linha.role === 'admin',
     isLeitor: linha.role === 'visualizador',
     homeOrgId: linha.homeOrgId,
     orgId: org.id,
@@ -159,7 +168,7 @@ export async function encerrarTodasAsSessoes(userId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.userId, userId))
 }
 
-/** O superadmin passa a ver a conta de um cliente sem trocar de identidade. */
+/** O time Nex passa a ver a conta de um cliente sem trocar de identidade. */
 export async function personificar(token: string, orgId: string | null): Promise<void> {
   await db.update(sessions).set({ actingOrgId: orgId }).where(eq(sessions.id, hashToken(token)))
 }

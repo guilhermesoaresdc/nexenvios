@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { exigirSuperadmin } from '@/lib/auth/atual'
+import { exigirTimeNex } from '@/lib/auth/atual'
 import { auditoria, consumoPorCliente, resumoGeral } from '@/db/queries/admin'
 import { CANAL_CURTO } from '@/db/schema/enums'
 import { Chip, Etiqueta, Numero, Pad, PadTitulo, Tabela, Td, Th, Vazio } from '@/components/ui/base'
@@ -24,7 +24,7 @@ const ACAO_LABEL: Record<string, string> = {
 }
 
 export default async function VisaoGeral() {
-  await exigirSuperadmin()
+  await exigirTimeNex()
 
   const [resumo, consumo, registros] = await Promise.all([
     resumoGeral(),

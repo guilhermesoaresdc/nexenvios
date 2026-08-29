@@ -3,7 +3,16 @@
 import { useActionState, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { criarCliente } from '../acoes'
-import { Aviso, Botao, Campo, Entrada, Pad, PadTitulo, Selecao } from '@/components/ui/base'
+import {
+  Aviso,
+  Botao,
+  Campo,
+  Entrada,
+  Etiqueta,
+  Pad,
+  PadTitulo,
+  Selecao,
+} from '@/components/ui/base'
 import { apelido as gerarApelido } from '@/lib/ui'
 
 function Enviar() {
@@ -22,6 +31,7 @@ export function Formulario() {
   const [nome, setNome] = useState('')
   const [apelido, setApelido] = useState('')
   const [tocouApelido, setTocouApelido] = useState(false)
+  const [acesso, setAcesso] = useState<'senha' | 'convite'>('senha')
 
   return (
     <form action={acao} className="grid grid-cols-[1.4fr_1fr] gap-6 max-lg:grid-cols-1">
@@ -83,15 +93,59 @@ export function Formulario() {
         <Pad>
           <PadTitulo
             titulo="Quem administra a conta"
-            descricao="Recebe um link para definir a própria senha. Nenhuma senha é criada por aqui."
+            descricao="A primeira pessoa do cliente. Depois ela mesma convida o resto da equipe."
           />
-          <div className="grid grid-cols-2 gap-4 p-6 max-sm:grid-cols-1">
-            <Campo rotulo="Nome" obrigatorio>
-              <Entrada name="adminNome" required placeholder="Renata Alves" />
-            </Campo>
-            <Campo rotulo="E-mail" obrigatorio>
-              <Entrada name="adminEmail" type="email" required placeholder="renata@empresa.com.br" />
-            </Campo>
+          <div className="space-y-4 p-6">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+              <Campo rotulo="Nome" obrigatorio>
+                <Entrada name="adminNome" required placeholder="Renata Alves" />
+              </Campo>
+              <Campo rotulo="E-mail" dica="É com ele que a pessoa entra." obrigatorio>
+                <Entrada name="adminEmail" type="email" required placeholder="renata@empresa.com.br" />
+              </Campo>
+            </div>
+
+            <input type="hidden" name="adminAcesso" value={acesso} />
+            <div>
+              <Etiqueta className="mb-2 block">Como ela entra</Etiqueta>
+              <div className="flex gap-2 max-sm:flex-col">
+                <button
+                  type="button"
+                  onClick={() => setAcesso('senha')}
+                  className={`flex-1 rounded-[12px] border-2 px-3 py-2.5 text-left text-[.86rem] font-semibold transition-colors ${
+                    acesso === 'senha' ? 'border-blue bg-blue/6 text-blue' : 'border-line text-muted'
+                  }`}
+                >
+                  Definir a senha agora
+                  <span className="block text-[.76rem] font-normal">
+                    aparece uma vez e você entrega
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAcesso('convite')}
+                  className={`flex-1 rounded-[12px] border-2 px-3 py-2.5 text-left text-[.86rem] font-semibold transition-colors ${
+                    acesso === 'convite' ? 'border-blue bg-blue/6 text-blue' : 'border-line text-muted'
+                  }`}
+                >
+                  Mandar convite
+                  <span className="block text-[.76rem] font-normal">
+                    a pessoa escolhe a própria senha
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {acesso === 'senha' ? (
+              <Campo rotulo="Senha" dica="Deixe em branco para gerar uma forte.">
+                <Entrada
+                  name="adminSenha"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="gerar automaticamente"
+                />
+              </Campo>
+            ) : null}
           </div>
         </Pad>
 

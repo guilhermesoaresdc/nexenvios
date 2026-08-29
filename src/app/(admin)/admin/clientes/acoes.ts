@@ -6,10 +6,9 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/db'
 import { auditLog, creditLedger, organizations, users } from '@/db/schema'
-import { exigirSuperadmin } from '@/lib/auth/atual'
-import { enviarEmailDeSenha } from '@/lib/auth/email'
-import { emitirToken } from '@/lib/auth/tokens'
+import { exigirPoderTotal, exigirTimeNex } from '@/lib/auth/atual'
 import { encerrarTodasAsSessoes } from '@/lib/auth/sessao'
+import { criarUsuario } from '@/lib/acessos/servico'
 import { criarLog } from '@/lib/log'
 import { apelido } from '@/lib/ui'
 
@@ -38,10 +37,14 @@ const novoCliente = z.object({
   creditoInicial: z.coerce.number().min(0).max(1_000_000),
   adminNome: z.string().trim().min(2, 'Informe o nome de quem vai administrar a conta.').max(120),
   adminEmail: z.string().trim().toLowerCase().email('E-mail do administrador inválido.'),
+  /** Definir a senha agora ou mandar convite — mesma escolha das outras telas. */
+  adminAcesso: z.enum(['convite', 'senha']).default('senha'),
+  adminSenha: z.string().max(200).optional().or(z.literal('')),
 })
 
 export async function criarCliente(_anterior: Estado, form: FormData): Promise<Estado> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
 
   const bruto = {
     nome: form.get('nome'),
@@ -55,6 +58,8 @@ export async function criarCliente(_anterior: Estado, form: FormData): Promise<E
     creditoInicial: form.get('creditoInicial') ?? 0,
     adminNome: form.get('adminNome'),
     adminEmail: form.get('adminEmail'),
+    adminAcesso: form.get('adminAcesso') || 'senha',
+    adminSenha: form.get('adminSenha') ?? '',
   }
 
   const dados = novoCliente.safeParse(bruto)
@@ -96,17 +101,19 @@ export async function criarCliente(_anterior: Estado, form: FormData): Promise<E
 
   if (!org) return { erro: 'Não foi possível criar o cliente.' }
 
-  const [novoUsuario] = await db
-    .insert(users)
-    .values({
-      orgId: org.id,
-      name: dados.data.adminNome,
-      email: dados.data.adminEmail,
-      role: 'admin',
-      // Sem senha: quem define é a própria pessoa, pelo link do convite.
-      passwordHash: null,
-    })
-    .returning({ id: users.id })
+  /*
+   * O primeiro acesso passa pelo mesmo serviço das outras telas. Duplicar a
+   * criação de usuário aqui era o caminho para as travas divergirem — e é
+   * exatamente onde uma trava esquecida não dói até doer.
+   */
+  const acesso = await criarUsuario(admin, {
+    orgId: org.id,
+    nome: dados.data.adminNome,
+    email: dados.data.adminEmail,
+    papel: 'admin',
+    acesso: dados.data.adminAcesso,
+    senha: dados.data.adminSenha || undefined,
+  })
 
   if (dados.data.creditoInicial > 0) {
     await db.insert(creditLedger).values({
@@ -127,24 +134,29 @@ export async function criarCliente(_anterior: Estado, form: FormData): Promise<E
     meta: { nome: dados.data.nome, credito: dados.data.creditoInicial },
   })
 
-  let link: string | undefined
-  if (novoUsuario) {
-    const token = await emitirToken(novoUsuario.id, 'convite')
-    const envio = await enviarEmailDeSenha(dados.data.adminEmail, token, 'convite')
-    // O link vai para a tela mesmo quando o e-mail saiu: numa instalação nova,
-    // sem domínio verificado, o e-mail some no spam e o cliente fica esperando.
-    link = envio.link
-  }
-
   log.info('cliente criado', { org: org.id })
   revalidatePath('/admin/clientes')
-  redirect(`/admin/clientes/${org.id}?convite=${encodeURIComponent(link ?? '')}`)
+  revalidatePath('/admin/usuarios')
+
+  /*
+   * A senha ou o link vão na URL para a tela de detalhe poder mostrá-los uma
+   * vez. Não é o lugar mais bonito para um segredo, mas ele é de uso único e
+   * a alternativa — perder a senha recém-criada num redirect — é pior.
+   */
+  const parametro = acesso.ok
+    ? acesso.valor.senha
+      ? `senha=${encodeURIComponent(acesso.valor.senha)}`
+      : `convite=${encodeURIComponent(acesso.valor.link ?? '')}`
+    : `aviso=${encodeURIComponent(acesso.erro)}`
+
+  redirect(`/admin/clientes/${org.id}?${parametro}`)
 }
 
 const edicao = z.object({ orgId: z.string().uuid(), ...cadastro })
 
 export async function salvarCliente(_anterior: Estado, form: FormData): Promise<Estado> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
 
   const dados = edicao.safeParse({
     orgId: form.get('orgId'),
@@ -191,7 +203,8 @@ const mudancaDeStatus = z.object({
 })
 
 export async function mudarStatus(_anterior: Estado, form: FormData): Promise<Estado> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
 
   const dados = mudancaDeStatus.safeParse({
     orgId: form.get('orgId'),
@@ -240,7 +253,8 @@ const lancamento = z.object({
 })
 
 export async function lancarCredito(_anterior: Estado, form: FormData): Promise<Estado> {
-  const admin = await exigirSuperadmin()
+  const admin = await exigirTimeNex()
+  exigirPoderTotal(admin)
 
   const dados = lancamento.safeParse({
     orgId: form.get('orgId'),
@@ -278,62 +292,5 @@ export async function lancarCredito(_anterior: Estado, form: FormData): Promise<
       dados.data.valor > 0
         ? `Crédito de R$ ${dados.data.valor.toFixed(2).replace('.', ',')} lançado.`
         : `Ajuste de R$ ${Math.abs(dados.data.valor).toFixed(2).replace('.', ',')} debitado.`,
-  }
-}
-
-const convite = z.object({
-  orgId: z.string().uuid(),
-  nome: z.string().trim().min(2, 'Informe o nome.').max(120),
-  email: z.string().trim().toLowerCase().email('E-mail inválido.'),
-  papel: z.enum(['admin', 'operador', 'visualizador']),
-})
-
-export async function convidarUsuario(_anterior: Estado, form: FormData): Promise<Estado> {
-  const admin = await exigirSuperadmin()
-
-  const dados = convite.safeParse({
-    orgId: form.get('orgId'),
-    nome: form.get('nome'),
-    email: form.get('email'),
-    papel: form.get('papel'),
-  })
-  if (!dados.success) return { erro: dados.error.issues[0]?.message ?? 'Confira os campos.' }
-
-  const [jaExiste] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, dados.data.email))
-    .limit(1)
-  if (jaExiste) return { erro: 'Já existe um usuário com este e-mail.' }
-
-  const [novo] = await db
-    .insert(users)
-    .values({
-      orgId: dados.data.orgId,
-      name: dados.data.nome,
-      email: dados.data.email,
-      role: dados.data.papel,
-      passwordHash: null,
-    })
-    .returning({ id: users.id })
-
-  if (!novo) return { erro: 'Não foi possível criar o usuário.' }
-
-  const token = await emitirToken(novo.id, 'convite')
-  const envio = await enviarEmailDeSenha(dados.data.email, token, 'convite')
-
-  await db.insert(auditLog).values({
-    orgId: dados.data.orgId,
-    userId: admin.id,
-    action: 'usuario.convidado',
-    entity: 'user',
-    entityId: novo.id,
-    meta: { papel: dados.data.papel },
-  })
-
-  revalidatePath(`/admin/clientes/${dados.data.orgId}`)
-  return {
-    ok: envio.enviado ? 'Convite enviado por e-mail.' : 'Usuário criado. Copie o link abaixo.',
-    link: envio.link,
   }
 }

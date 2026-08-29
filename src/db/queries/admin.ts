@@ -280,3 +280,121 @@ export async function auditoria(limite = 100): Promise<LinhaDeAuditoria[]> {
      LIMIT ${limite}
   `
 }
+
+export type UsuarioGlobal = {
+  id: string
+  nome: string
+  email: string
+  papel: string
+  ativo: boolean
+  temSenha: boolean
+  ultimoAcesso: Date | null
+  criadoEm: Date
+  orgId: string
+  cliente: string
+  clienteApelido: string
+  daPlataforma: boolean
+  /** Tem convite emitido e ainda não usado? */
+  convitePendente: boolean
+}
+
+export type FiltroDeUsuarios = {
+  busca?: string
+  orgId?: string
+  papel?: string
+  /** 'plataforma' = só o time Nex; 'clientes' = só usuários de cliente. */
+  escopo?: 'todos' | 'plataforma' | 'clientes'
+  ativos?: 'todos' | 'ativos' | 'inativos'
+  limite?: number
+  pular?: number
+}
+
+function condicoesDeUsuario(f: FiltroDeUsuarios) {
+  return sql`
+    true
+    ${f.orgId ? sql`AND u.org_id = ${f.orgId}` : sql``}
+    ${f.papel ? sql`AND u.role = ${f.papel}::user_role` : sql``}
+    ${f.escopo === 'plataforma' ? sql`AND o.is_platform` : sql``}
+    ${f.escopo === 'clientes' ? sql`AND NOT o.is_platform` : sql``}
+    ${f.ativos === 'ativos' ? sql`AND u.active` : sql``}
+    ${f.ativos === 'inativos' ? sql`AND NOT u.active` : sql``}
+    ${
+      f.busca
+        ? sql`AND (u.name ILIKE ${'%' + f.busca + '%'}
+                OR u.email ILIKE ${'%' + f.busca + '%'}
+                OR o.name ILIKE ${'%' + f.busca + '%'})`
+        : sql``
+    }
+  `
+}
+
+/**
+ * Todos os usuários, de todos os clientes.
+ *
+ * Atravessa organizações — como tudo neste arquivo, pressupõe que quem chamou
+ * passou por `exigirTimeNex()`.
+ */
+export async function todosOsUsuarios(f: FiltroDeUsuarios = {}): Promise<UsuarioGlobal[]> {
+  const { limite = 50, pular = 0 } = f
+  return sql<UsuarioGlobal[]>`
+    SELECT u.id, u.name AS nome, u.email, u.role::text AS papel, u.active AS ativo,
+           (u.password_hash IS NOT NULL) AS "temSenha",
+           u.last_login_at AS "ultimoAcesso", u.created_at AS "criadoEm",
+           u.org_id AS "orgId", o.name AS cliente, o.slug AS "clienteApelido",
+           o.is_platform AS "daPlataforma",
+           EXISTS (
+             SELECT 1 FROM password_tokens t
+              WHERE t.user_id = u.id AND t.used_at IS NULL AND t.expires_at > now()
+           ) AS "convitePendente"
+      FROM users u
+      JOIN organizations o ON o.id = u.org_id
+     WHERE ${condicoesDeUsuario(f)}
+     ORDER BY o.is_platform DESC, o.name, u.created_at
+     LIMIT ${limite} OFFSET ${pular}
+  `
+}
+
+export async function contarUsuarios(f: FiltroDeUsuarios = {}): Promise<number> {
+  const [linha] = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM users u JOIN organizations o ON o.id = u.org_id
+     WHERE ${condicoesDeUsuario(f)}
+  `
+  return linha?.n ?? 0
+}
+
+export type ResumoDeAcessos = {
+  total: number
+  ativos: number
+  semSenha: number
+  timeNex: number
+}
+
+export async function resumoDeAcessos(): Promise<ResumoDeAcessos> {
+  const [linha] = await sql<ResumoDeAcessos[]>`
+    SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE u.active)::int AS ativos,
+           count(*) FILTER (WHERE u.password_hash IS NULL)::int AS "semSenha",
+           count(*) FILTER (WHERE o.is_platform)::int AS "timeNex"
+      FROM users u JOIN organizations o ON o.id = u.org_id
+  `
+  return linha ?? { total: 0, ativos: 0, semSenha: 0, timeNex: 0 }
+}
+
+/** A organização interna da Nex Envios. */
+export async function orgDaPlataforma(): Promise<{ id: string; nome: string } | null> {
+  const [linha] = await sql<{ id: string; nome: string }[]>`
+    SELECT id, name AS nome FROM organizations WHERE is_platform LIMIT 1
+  `
+  return linha ?? null
+}
+
+/** Clientes em forma de opção de select — nome e id, nada mais. */
+export async function clientesParaEscolha(): Promise<{ id: string; nome: string; plataforma: boolean }[]> {
+  return sql<{ id: string; nome: string; plataforma: boolean }[]>`
+    SELECT id, name AS nome, is_platform AS plataforma
+      FROM organizations
+     ORDER BY is_platform DESC, name
+     LIMIT 500
+  `
+}

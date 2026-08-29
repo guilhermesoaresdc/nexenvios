@@ -3,16 +3,8 @@
 import { useActionState, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import type { ClienteDetalhado } from '@/db/queries/admin'
-import { convidarUsuario, lancarCredito, mudarStatus, salvarCliente } from '../acoes'
-import {
-  Aviso,
-  Botao,
-  Campo,
-  Entrada,
-  Pad,
-  PadTitulo,
-  Selecao,
-} from '@/components/ui/base'
+import { lancarCredito, mudarStatus, salvarCliente } from '../acoes'
+import { Aviso, Botao, Campo, Entrada, Pad, PadTitulo, Selecao } from '@/components/ui/base'
 import { moeda } from '@/lib/ui'
 
 function Salvar({ texto = 'Salvar', tom }: { texto?: string; tom?: 'primario' | 'perigo' }) {
@@ -21,6 +13,50 @@ function Salvar({ texto = 'Salvar', tom }: { texto?: string; tom?: 'primario' | 
     <Botao type="submit" tom={tom} disabled={pending}>
       {pending ? 'Salvando…' : texto}
     </Botao>
+  )
+}
+
+const FUSO_LABEL: Record<string, string> = {
+  'America/Sao_Paulo': 'Brasília (São Paulo)',
+  'America/Manaus': 'Manaus',
+  'America/Belem': 'Belém',
+  'America/Fortaleza': 'Fortaleza',
+  'America/Recife': 'Recife',
+  'America/Cuiaba': 'Cuiabá',
+  'America/Rio_Branco': 'Rio Branco',
+}
+
+/**
+ * O mesmo cadastro, só que de olhar.
+ *
+ * Quem é Suporte Nex precisa enxergar os dados da conta para atender, mas
+ * `salvarCliente` exige poder total — mostrar o formulário editável só levaria
+ * a pessoa a preencher e tomar um erro no fim.
+ */
+export function CadastroSoLeitura({ cliente }: { cliente: ClienteDetalhado }) {
+  const linhas: [string, string][] = [
+    ['Nome da empresa', cliente.nome],
+    ['Apelido', cliente.apelido],
+    ['CNPJ ou CPF', cliente.documento ?? '—'],
+    ['Fuso horário', FUSO_LABEL[cliente.fuso] ?? cliente.fuso],
+    ['Contato — nome', cliente.contatoNome ?? '—'],
+    ['Contato — e-mail', cliente.contato ?? '—'],
+    ['Contato — telefone', cliente.contatoTelefone ?? '—'],
+    ['Limite de confiança', Number(cliente.limite).toFixed(2)],
+  ]
+
+  return (
+    <Pad>
+      <PadTitulo titulo="Cadastro" descricao="Só Administrador Nex edita o cadastro." />
+      <ul className="divide-y divide-line">
+        {linhas.map(([rotulo, valor]) => (
+          <li key={rotulo} className="flex items-baseline justify-between gap-4 px-6 py-3">
+            <span className="text-[.84rem] text-muted">{rotulo}</span>
+            <span className="text-right text-[.88rem] font-semibold text-navy">{valor}</span>
+          </li>
+        ))}
+      </ul>
+    </Pad>
   )
 }
 
@@ -193,51 +229,5 @@ export function Convite({ link }: { link: string }) {
         </Botao>
       </div>
     </Aviso>
-  )
-}
-
-/**
- * Convidar mais alguém para a conta do cliente.
- *
- * Exportação nomeada, e não `Convite.Formulario`: um módulo `'use client'`
- * exporta REFERÊNCIAS para o servidor, não funções, e a propriedade estática
- * chega como `undefined` do outro lado — o React derruba a página inteira com
- * "element type is invalid".
- */
-export function FormularioDeConvite({ orgId }: { orgId: string }) {
-  const [estado, acao] = useActionState(convidarUsuario, undefined)
-
-  return (
-    <form action={acao} className="space-y-4">
-      <input type="hidden" name="orgId" value={orgId} />
-      {estado?.erro ? <Aviso tom="erro">{estado.erro}</Aviso> : null}
-      {estado?.ok ? (
-        <Aviso tom="ok" titulo={estado.ok}>
-          {estado.link ? (
-            <code className="mt-2 block truncate rounded-[8px] bg-white px-3 py-2 font-mono text-[.76rem] text-navy">
-              {estado.link}
-            </code>
-          ) : null}
-        </Aviso>
-      ) : null}
-
-      <p className="text-[.82rem] font-semibold text-navy">Convidar mais alguém</p>
-      <div className="flex flex-wrap items-end gap-3">
-        <Campo rotulo="Nome" className="min-w-[160px] flex-1">
-          <Entrada name="nome" required placeholder="João Silva" />
-        </Campo>
-        <Campo rotulo="E-mail" className="min-w-[200px] flex-1">
-          <Entrada name="email" type="email" required placeholder="joao@empresa.com.br" />
-        </Campo>
-        <Campo rotulo="Papel" className="min-w-[150px]">
-          <Selecao name="papel" defaultValue="operador">
-            <option value="admin">Administrador da conta</option>
-            <option value="operador">Operador</option>
-            <option value="visualizador">Visualizador</option>
-          </Selecao>
-        </Campo>
-        <Salvar texto="Convidar" />
-      </div>
-    </form>
   )
 }

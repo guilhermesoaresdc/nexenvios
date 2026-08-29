@@ -1,0 +1,11 @@
+-- Um papel para o time Nex que NÃO mexe em dinheiro.
+--
+-- Até aqui só existia `superadmin`, e quem entrasse no /admin podia recarregar
+-- crédito, mudar preço e trocar a credencial de um provedor que todos os
+-- clientes usam. Suporte precisa enxergar tudo para atender; não precisa nada
+-- disso — e dar o que não é preciso é como um acidente vira prejuízo.
+--
+-- `suporte` lê todos os clientes, entra na conta deles e cuida de acesso
+-- (criar usuário, definir senha, ativar e desativar). O que move dinheiro ou
+-- muda a configuração da plataforma continua exigindo `superadmin`.
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'suporte' AFTER 'superadmin';

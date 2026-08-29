@@ -33,9 +33,37 @@ operação só — com painel para o cliente e administração para o time Nex.
 | Papel | Vê |
 |---|---|
 | **Administrador Nex** (`superadmin`) | Todos os clientes, consumo global, preços, provedores da plataforma. Pode entrar na conta de um cliente — e tudo que fizer lá fica registrado no nome dele |
+| **Suporte Nex** (`suporte`) | Todos os clientes e o acesso de qualquer pessoa: cria login, define senha, troca papel do cliente. Não mexe em crédito, preço, provedor nem cadastro, e não concede papel do time Nex |
 | **Administrador da conta** (`admin`) | A própria organização inteira: disparos, base, canais, equipe, chaves de API |
 | **Operador** | Cria e acompanha disparos; não mexe em canais nem em equipe |
 | **Visualizador** | Só leitura |
+
+## Dar e tirar acesso
+
+Todo login da plataforma — o do time Nex e o de cada cliente — se resolve em
+`/admin/usuarios`: uma lista só, com busca por nome, e-mail ou conta e filtro
+por conta, papel e situação. `/admin/equipe` é a mesma coisa recortada no time
+Nex, e a aba **Acessos** de cada cliente traz as pessoas daquela conta sem sair
+da página dela.
+
+Criar um acesso tem dois caminhos, e a diferença importa na prática:
+
+- **Definir a senha agora** — a senha aparece uma vez na tela, com botão de
+  copiar, e você entrega por fora. É o caminho de quando o e-mail do cliente não
+  chega ou a pessoa precisa entrar naquele minuto.
+- **Mandar convite** — nasce sem `password_hash` e a pessoa escolhe a própria
+  senha por um link que vale 7 dias e queima no primeiro uso.
+
+As regras que impedem a plataforma de se trancar por fora moram todas em
+`src/lib/acessos/servico.ts`, não nas telas:
+
+1. Papel do time Nex só um Administrador Nex concede.
+2. Ninguém troca o próprio papel nem se desativa.
+3. O último administrador ativo de uma conta não pode ser rebaixado nem
+   desativado — a conta ficaria sem dono.
+4. Trocar senha ou desativar alguém derruba as sessões abertas na hora.
+
+Cada uma dessas regras tem teste em `tests/acessos.integracao.test.ts`.
 
 ## Stack
 
@@ -189,7 +217,14 @@ banido — e um número banido raramente volta.** Por isso:
 Toda consulta de cliente carrega `org_id` — sem exceção, e o `org_id` vem
 sempre da sessão, nunca de formulário ou URL. As únicas consultas que
 atravessam organizações vivem em `src/db/queries/admin.ts`, e toda função de lá
-pressupõe `exigirSuperadmin()`.
+pressupõe `exigirTimeNex()`.
+
+Dentro da administração há dois níveis. `exigirTimeNex()` deixa entrar
+superadmin e suporte — é o portão de leitura. `exigirSuperadmin()` (nas telas)
+e `exigirPoderTotal()` (nas ações) trancam o que mexe em dinheiro e na
+configuração da plataforma: crédito, preço, provedor, cadastro e status de
+cliente. As duas checagens são de servidor; esconder o botão é conforto, não
+proteção.
 
 No banco, o RLS está ligado em todas as tabelas **sem política alguma para
 `anon` e `authenticated`**. Isso não serve para a aplicação (que conecta com o
@@ -209,7 +244,7 @@ src/
     (site)/        landing page
     (publico)/     entrar, recuperar, definir senha
     (app)/         painel do cliente — exige sessão
-    (admin)/       administração Nex — exige superadmin
+    (admin)/       administração Nex — exige time Nex
     api/
       cron/        o batimento
       v1/          API pública, autenticada por chave
