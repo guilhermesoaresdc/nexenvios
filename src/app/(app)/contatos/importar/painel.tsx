@@ -1,0 +1,364 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { importarLote } from '../acoes'
+import { normalizarTelefone } from '@/lib/telefone'
+import {
+  Aviso,
+  Botao,
+  Campo,
+  Chip,
+  Entrada,
+  Etiqueta,
+  Numero,
+  Pad,
+  PadTitulo,
+  Selecao,
+  Tabela,
+  Td,
+  Th,
+} from '@/components/ui/base'
+import { numero } from '@/lib/ui'
+
+/**
+ * A leitura da planilha acontece AQUI, no navegador.
+ *
+ * Subir cem mil linhas para o servidor só para descobrir que metade é inválida
+ * é caro e lento; e o erro por linha só é útil se vier com a linha ORIGINAL,
+ * para a pessoa achar no Excel. Depois de conferir, só os números já
+ * normalizados sobem, em lotes.
+ */
+
+const CABECALHOS_TELEFONE = [
+  'telefone',
+  'celular',
+  'whatsapp',
+  'fone',
+  'numero',
+  'número',
+  'number',
+  'phone',
+  'msisdn',
+  'tel',
+]
+const CABECALHOS_NOME = ['nome', 'name', 'contato', 'cliente', 'razao', 'razão']
+
+const MOTIVO: Record<string, string> = {
+  vazio: 'sem número',
+  curto: 'dígitos de menos',
+  longo: 'dígitos demais',
+  ddd: 'DDD que não existe',
+  formato: 'não parece um telefone',
+  repetido: 'repetido na planilha',
+}
+
+type Valida = { telefone: string; nome: string | null; linha: number }
+type Recusada = { original: string; motivo: string; linha: number }
+
+function separar(linha: string): string[] {
+  // Ponto-e-vírgula primeiro: é o separador que o Excel brasileiro usa.
+  const sep = linha.includes(';') ? ';' : linha.includes('\t') ? '\t' : ','
+  return linha.split(sep).map((c) => c.trim().replace(/^"|"$/g, ''))
+}
+
+function ler(texto: string): { validas: Valida[]; recusadas: Recusada[]; total: number } {
+  const linhas = texto.split(/\r?\n/).filter((l) => l.trim() !== '')
+  if (linhas.length === 0) return { validas: [], recusadas: [], total: 0 }
+
+  const primeira = separar(linhas[0]!).map((c) => c.toLowerCase())
+  const temCabecalho = primeira.some(
+    (c) => CABECALHOS_TELEFONE.includes(c) || CABECALHOS_NOME.includes(c),
+  )
+
+  let colTelefone = 0
+  let colNome = -1
+  if (temCabecalho) {
+    colTelefone = primeira.findIndex((c) => CABECALHOS_TELEFONE.includes(c))
+    colNome = primeira.findIndex((c) => CABECALHOS_NOME.includes(c))
+    if (colTelefone < 0) colTelefone = 0
+  }
+
+  const validas: Valida[] = []
+  const recusadas: Recusada[] = []
+  const vistos = new Set<string>()
+
+  for (let i = temCabecalho ? 1 : 0; i < linhas.length; i += 1) {
+    const numeroDaLinha = i + 1
+    const colunas = separar(linhas[i]!)
+    const bruto = colunas[colTelefone] ?? ''
+    const nome = colNome >= 0 ? (colunas[colNome] ?? null) : (colunas[1] ?? null)
+
+    const norm = normalizarTelefone(bruto)
+    if (!norm.ok) {
+      recusadas.push({ original: linhas[i]!.slice(0, 60), motivo: norm.motivo, linha: numeroDaLinha })
+      continue
+    }
+    if (vistos.has(norm.e164)) {
+      recusadas.push({ original: linhas[i]!.slice(0, 60), motivo: 'repetido', linha: numeroDaLinha })
+      continue
+    }
+    vistos.add(norm.e164)
+    validas.push({ telefone: norm.e164, nome: nome?.trim() || null, linha: numeroDaLinha })
+  }
+
+  return { validas, recusadas, total: linhas.length - (temCabecalho ? 1 : 0) }
+}
+
+const LOTE = 2_000
+
+export function Painel({ listas }: { listas: { id: string; nome: string; total: number }[] }) {
+  const router = useRouter()
+  const [arquivo, setArquivo] = useState<string | null>(null)
+  const [lido, setLido] = useState<ReturnType<typeof ler> | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const [progresso, setProgresso] = useState<number | null>(null)
+  const [resultado, setResultado] = useState<{
+    novos: number
+    atualizados: number
+    repetidos: number
+    descadastrados: number
+  } | null>(null)
+  const [enviando, iniciar] = useTransition()
+
+  async function aoEscolher(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setErro(null)
+    setResultado(null)
+    setArquivo(f.name)
+    try {
+      const texto = await f.text()
+      const r = ler(texto)
+      if (r.total === 0) setErro('O arquivo está vazio.')
+      setLido(r)
+    } catch {
+      setErro('Não consegui ler este arquivo. Salve como CSV e tente de novo.')
+    }
+  }
+
+  function importar(form: FormData) {
+    if (!lido || lido.validas.length === 0) return
+    setErro(null)
+
+    iniciar(async () => {
+      const listaId = String(form.get('listaId') ?? '')
+      const novaLista = String(form.get('novaLista') ?? '')
+      const etiquetas = String(form.get('etiquetas') ?? '')
+
+      const soma = { novos: 0, atualizados: 0, repetidos: 0, descadastrados: 0 }
+      let listaCriada: string | null = listaId || null
+
+      for (let i = 0; i < lido.validas.length; i += LOTE) {
+        const fatia = lido.validas.slice(i, i + LOTE)
+        setProgresso(Math.round((i / lido.validas.length) * 100))
+
+        const r = await importarLote({
+          linhas: fatia.map((l) => ({ telefone: l.telefone, nome: l.nome })),
+          listaId: listaCriada ?? '',
+          novaLista,
+          etiquetas,
+          arquivo: arquivo ?? '',
+          invalidos: lido.recusadas.length,
+          continuando: i > 0,
+        })
+
+        if (!r.ok) {
+          setErro(r.erro)
+          setProgresso(null)
+          return
+        }
+
+        // A lista criada no primeiro lote recebe os seguintes.
+        listaCriada = r.listaId
+        soma.novos += r.novos
+        soma.atualizados += r.atualizados
+        soma.repetidos += r.repetidos
+        soma.descadastrados += r.descadastrados
+      }
+
+      setProgresso(null)
+      setResultado(soma)
+      setLido(null)
+      router.refresh()
+    })
+  }
+
+  if (resultado) {
+    return (
+      <Pad>
+        <PadTitulo titulo="Importação concluída" />
+        <div className="space-y-5 p-6">
+          <div className="grid grid-cols-4 gap-4 max-sm:grid-cols-2">
+            <Numero rotulo="Novos" valor={numero(resultado.novos)} tom="verde" />
+            <Numero rotulo="Atualizados" valor={numero(resultado.atualizados)} tom="blue" />
+            <Numero rotulo="Repetidos" valor={numero(resultado.repetidos)} />
+            <Numero rotulo="Descadastrados" valor={numero(resultado.descadastrados)} tom="ambar" />
+          </div>
+          {resultado.descadastrados > 0 ? (
+            <Aviso tom="alerta">
+              {numero(resultado.descadastrados)} número(s) da planilha já tinham pedido para sair.
+              Eles <b>não</b> foram reativados — quem se descadastrou só volta se você reativar na
+              tela de contatos, um a um.
+            </Aviso>
+          ) : null}
+          <div className="flex gap-2">
+            <Botao type="button" onClick={() => router.push('/contatos')}>
+              Ver a base
+            </Botao>
+            <Botao type="button" tom="contorno" onClick={() => setResultado(null)}>
+              Importar outra planilha
+            </Botao>
+          </div>
+        </div>
+      </Pad>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-[1.4fr_1fr] gap-6 max-lg:grid-cols-1">
+      <div className="space-y-5">
+        <Pad>
+          <PadTitulo
+            titulo="1. Escolha o arquivo"
+            descricao="CSV ou TXT. Reconhece as colunas telefone, celular, whatsapp, número — e nome."
+          />
+          <div className="p-6">
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-[12px] border-2 border-dashed border-line bg-paper-alt/40 px-6 py-10 text-center transition-colors hover:border-blue hover:bg-blue/4">
+              <input type="file" accept=".csv,.txt,text/csv,text/plain" className="hidden" onChange={aoEscolher} />
+              <span className="text-[.95rem] font-semibold text-navy">
+                {arquivo ?? 'Clique para escolher a planilha'}
+              </span>
+              <span className="mt-1 text-[.82rem] text-muted">
+                Um número por linha. Com ou sem cabeçalho.
+              </span>
+            </label>
+
+            {erro ? (
+              <Aviso tom="erro" className="mt-4">
+                {erro}
+              </Aviso>
+            ) : null}
+          </div>
+        </Pad>
+
+        {lido ? (
+          <Pad>
+            <PadTitulo
+              titulo="2. Confira o que entrou"
+              descricao="Nada foi gravado ainda. Estes números são o que a planilha entregou depois de limpar."
+            />
+            <div className="space-y-5 p-6">
+              <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-1">
+                <Numero rotulo="Linhas lidas" valor={numero(lido.total)} />
+                <Numero rotulo="Válidos" valor={numero(lido.validas.length)} tom="verde" />
+                <Numero
+                  rotulo="Fora"
+                  valor={numero(lido.recusadas.length)}
+                  tom={lido.recusadas.length > 0 ? 'ambar' : 'navy'}
+                />
+              </div>
+
+              {lido.recusadas.length > 0 ? (
+                <div>
+                  <Etiqueta className="mb-2 block">
+                    O que não entrou — e por quê (primeiras 20)
+                  </Etiqueta>
+                  <Tabela>
+                    <thead>
+                      <tr>
+                        <Th className="w-16">Linha</Th>
+                        <Th>Conteúdo</Th>
+                        <Th>Motivo</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lido.recusadas.slice(0, 20).map((r, i) => (
+                        <tr key={`${r.linha}-${i}`}>
+                          <Td className="tabular text-muted">{r.linha}</Td>
+                          <Td className="max-w-[280px] truncate font-mono text-[.78rem]">
+                            {r.original}
+                          </Td>
+                          <Td>
+                            <Chip tom="ambar">{MOTIVO[r.motivo] ?? r.motivo}</Chip>
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Tabela>
+                  {lido.recusadas.length > 20 ? (
+                    <p className="mt-2 text-[.8rem] text-muted">
+                      e mais {numero(lido.recusadas.length - 20)}.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {lido.validas.length > 0 ? (
+                <div>
+                  <Etiqueta className="mb-2 block">Amostra do que vai entrar</Etiqueta>
+                  <ul className="space-y-1">
+                    {lido.validas.slice(0, 5).map((v) => (
+                      <li key={v.telefone} className="tabular font-mono text-[.82rem] text-muted">
+                        {v.telefone}
+                        {v.nome ? ` — ${v.nome}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </Pad>
+        ) : null}
+      </div>
+
+      <Pad className="self-start lg:sticky lg:top-6">
+        <PadTitulo titulo="3. Onde guardar" />
+        <form action={importar} className="space-y-4 p-6">
+          <Campo rotulo="Adicionar a uma lista" dica="Opcional. Ajuda a escolher o público no disparo.">
+            <Selecao name="listaId" defaultValue="">
+              <option value="">Não vincular a nenhuma lista</option>
+              {listas.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.nome} ({numero(l.total)})
+                </option>
+              ))}
+            </Selecao>
+          </Campo>
+
+          <Campo rotulo="Ou criar uma lista nova" dica="Deixe em branco se escolheu uma acima.">
+            <Entrada name="novaLista" placeholder="FGTS — abril" />
+          </Campo>
+
+          <Campo rotulo="Etiquetas" dica="Separadas por vírgula. Somam às que o contato já tem.">
+            <Entrada name="etiquetas" placeholder="fgts, quente" />
+          </Campo>
+
+          {progresso !== null ? (
+            <div className="rounded-[12px] bg-paper-alt px-4 py-3 text-[.86rem] font-semibold text-navy">
+              Enviando… {progresso}%
+            </div>
+          ) : null}
+
+          <Botao
+            type="submit"
+            bloco
+            tamanho="lg"
+            disabled={enviando || !lido || lido.validas.length === 0}
+          >
+            {enviando
+              ? 'Importando…'
+              : lido
+                ? `Importar ${numero(lido.validas.length)} contato(s)`
+                : 'Escolha um arquivo'}
+          </Botao>
+
+          <p className="text-[.78rem] leading-relaxed text-muted">
+            Quem já pediu para sair não é reativado pela importação. É o que mantém a operação dentro
+            da lei — e o número longe da denúncia.
+          </p>
+        </form>
+      </Pad>
+    </div>
+  )
+}
