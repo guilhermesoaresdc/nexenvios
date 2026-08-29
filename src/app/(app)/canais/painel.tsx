@@ -301,7 +301,9 @@ export function Numeros({
 
         {codigo ? (
           <div className="mt-5 flex flex-wrap items-center gap-6 border-t border-line pt-5">
-            {/* A Evolution devolve o QR já em base64. */}
+            {/* eslint-disable-next-line @next/next/no-img-element --
+                a Evolution devolve o QR em base64; `next/image` não tem o que
+                otimizar num data URI, e passaria por um proxy à toa. */}
             <img
               src={codigo.startsWith('data:') ? codigo : `data:image/png;base64,${codigo}`}
               alt="QR Code para conectar o WhatsApp"

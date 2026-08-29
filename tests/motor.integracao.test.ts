@@ -140,11 +140,8 @@ cenario('motor de disparo', () => {
     // 40 contatos menos o descadastrado.
     expect(r.destinatarios).toBe(39)
 
-    let criadas = 0
     for (let i = 0; i < 20; i += 1) {
-      const n = await servico.materializar(campanhaId, 5_000)
-      criadas += n
-      if (n === 0) break
+      if ((await servico.materializar(campanhaId, 5_000)) === 0) break
     }
 
     const [linhas] = await sql<{ n: number }[]>`

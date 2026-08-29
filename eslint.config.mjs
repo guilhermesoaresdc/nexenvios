@@ -4,7 +4,16 @@ import { FlatCompat } from '@eslint/eslintrc'
 
 const compat = new FlatCompat({ baseDirectory: dirname(fileURLToPath(import.meta.url)) })
 
-export default [
+const config = [
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
-  { ignores: ['.next/**', 'node_modules/**', 'src/db/migrations-embutidas.ts'] },
+  {
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+      // Gerado pelo Next a cada build, e já ignorado pelo git.
+      'next-env.d.ts',
+    ],
+  },
 ]
+
+export default config

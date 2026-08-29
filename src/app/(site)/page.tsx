@@ -269,7 +269,7 @@ export default function Landing() {
                   </tr>
                 </thead>
                 <tbody className="max-md:block">
-                  {CANAIS.map(({ codigo, nome, Icone, descricao, status }, i) => (
+                  {CANAIS.map(({ codigo, nome, Icone, descricao, status }) => (
                     <tr
                       key={codigo}
                       className="transition-colors hover:bg-blue/4 max-md:block max-md:border-b max-md:border-line max-md:px-[18px] max-md:py-5 max-md:last:border-0"
