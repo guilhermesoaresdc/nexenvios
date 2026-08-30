@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
+import { cookies } from 'next/headers'
 import { Navegacao, type DadosDaCasca } from './navegacao'
+import { COOKIE_MENU, MENU_ENCOLHIDO } from './preferencias'
 
 /**
  * A casca do painel: navegação à esquerda, conteúdo à direita, e a faixa de
  * visita quando um superadmin está dentro da conta de um cliente.
  */
-export function Casca({
+export async function Casca({
   usuario,
   area,
   sair,
@@ -18,9 +20,18 @@ export function Casca({
   encerrarVisita?: () => Promise<void>
   children: ReactNode
 }) {
+  // Ler aqui, no servidor, é o que faz o menu recolhido já nascer recolhido.
+  const encolhido = (await cookies()).get(COOKIE_MENU)?.value === MENU_ENCOLHIDO
+
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
-      <Navegacao usuario={usuario} area={area} sair={sair} encerrarVisita={encerrarVisita} />
+      <Navegacao
+        usuario={usuario}
+        area={area}
+        sair={sair}
+        encerrarVisita={encerrarVisita}
+        encolhidoInicial={encolhido}
+      />
 
       <div className="min-w-0 flex-1">
         {usuario.personificando ? (

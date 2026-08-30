@@ -129,3 +129,21 @@ export function IcVoltar({ className }: Props) {
     </svg>
   )
 }
+
+/** Recolher o menu: barra e seta apontando para ela. */
+export function IcRecolher({ className }: Props) {
+  return (
+    <svg viewBox="0 0 24 24" {...t} className={className} aria-hidden="true">
+      <path d="M4 5v14M20 12H10M14 8l-4 4 4 4" />
+    </svg>
+  )
+}
+
+/** Expandir o menu: a mesma peça, espelhada. */
+export function IcExpandir({ className }: Props) {
+  return (
+    <svg viewBox="0 0 24 24" {...t} className={className} aria-hidden="true">
+      <path d="M4 5v14M10 12h10M16 8l4 4-4 4" />
+    </svg>
+  )
+}
