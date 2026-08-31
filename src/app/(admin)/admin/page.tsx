@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { exigirTimeNex } from '@/lib/auth/atual'
-import { auditoria, consumoPorCliente, resumoGeral } from '@/db/queries/admin'
+import { auditoria, consumoPorCliente, estadoDoBatimento, resumoGeral } from '@/db/queries/admin'
 import { CANAL_CURTO } from '@/db/schema/enums'
 import { Chip, Etiqueta, Numero, Pad, PadTitulo, Tabela, Td, Th, Vazio } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { moeda, numero, quando } from '@/lib/ui'
+import { Batimento } from './batimento'
 
 export const metadata: Metadata = { title: 'Visão geral' }
 export const dynamic = 'force-dynamic'
@@ -26,10 +27,11 @@ const ACAO_LABEL: Record<string, string> = {
 export default async function VisaoGeral() {
   await exigirTimeNex()
 
-  const [resumo, consumo, registros] = await Promise.all([
+  const [resumo, consumo, registros, batimento] = await Promise.all([
     resumoGeral(),
     consumoPorCliente(30),
     auditoria(15),
+    estadoDoBatimento(),
   ])
 
   const entrega =
@@ -83,6 +85,10 @@ export default async function VisaoGeral() {
           valor={numero(resumo.falhas30)}
           tom={resumo.falhas30 > 0 ? 'vermelho' : 'navy'}
         />
+      </div>
+
+      <div className="mt-6">
+        <Batimento estado={batimento} />
       </div>
 
       <div className="mt-6 grid grid-cols-[1.3fr_1fr] gap-6 max-lg:grid-cols-1">

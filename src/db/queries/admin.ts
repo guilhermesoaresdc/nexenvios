@@ -398,3 +398,46 @@ export async function clientesParaEscolha(): Promise<{ id: string; nome: string;
      LIMIT 500
   `
 }
+
+// ──────────────────────────────────────────────────────────── o batimento
+
+export type EstadoDoBatimento = {
+  /** Linhas esperando a vez. */
+  naFila: number
+  /** A mais antiga que já venceu e continua parada. */
+  vencidaDesde: Date | null
+  /** Quando o motor bateu pela última vez. Nulo se nunca bateu. */
+  ultimoEm: Date | null
+  ultimoEnviados: number
+  ultimoTentados: number
+}
+
+/**
+ * O sinal de vida do motor.
+ *
+ * Uma fila parada e uma fila vazia se parecem na tela — e a diferença entre
+ * as duas é um cliente esperando um disparo que não sai. Por isso `vencidaDesde`
+ * vem junto: é ele que denuncia o agendador caído.
+ */
+export async function estadoDoBatimento(): Promise<EstadoDoBatimento> {
+  const [linha] = await sql<EstadoDoBatimento[]>`
+    SELECT
+      (SELECT count(*)::int FROM dispatches WHERE status = 'pendente') AS "naFila",
+      (SELECT min(scheduled_for) FROM dispatches
+        WHERE status = 'pendente' AND scheduled_for <= now()) AS "vencidaDesde",
+      (SELECT updated_at FROM system_settings WHERE key = 'ultimo_batimento') AS "ultimoEm",
+      (SELECT COALESCE((value ->> 'enviados')::int, 0) FROM system_settings
+        WHERE key = 'ultimo_batimento') AS "ultimoEnviados",
+      (SELECT COALESCE((value ->> 'tentados')::int, 0) FROM system_settings
+        WHERE key = 'ultimo_batimento') AS "ultimoTentados"
+  `
+  return (
+    linha ?? {
+      naFila: 0,
+      vencidaDesde: null,
+      ultimoEm: null,
+      ultimoEnviados: 0,
+      ultimoTentados: 0,
+    }
+  )
+}

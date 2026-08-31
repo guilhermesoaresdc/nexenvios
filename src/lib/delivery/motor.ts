@@ -1,7 +1,7 @@
 import 'server-only'
 import { and, eq, inArray, isNull, lt, lte, or, sql as raw } from 'drizzle-orm'
 import { db, sql } from '@/db'
-import { campaigns, channelConfigs, creditLedger, dispatches } from '@/db/schema'
+import { campaigns, channelConfigs, creditLedger, dispatches, systemSettings } from '@/db/schema'
 import type { Channel } from '@/db/schema/enums'
 import { enviarPeloCanal, montarConfig, type Destino, type Resultado } from '@/lib/channels'
 import { lerSegredo } from '@/lib/cripto'
@@ -398,7 +398,7 @@ export async function bater(limite = LOTE_PADRAO): Promise<ResumoDaBatida> {
 
   const campanhasConcluidas = await fecharConcluidas()
 
-  return {
+  const resumo: ResumoDaBatida = {
     soltas,
     linhasCriadas,
     tentados: lote.length,
@@ -406,6 +406,37 @@ export async function bater(limite = LOTE_PADRAO): Promise<ResumoDaBatida> {
     falhas: lote.length - enviados,
     campanhasIniciadas,
     campanhasConcluidas,
+  }
+
+  await registrarBatimento(resumo)
+  return resumo
+}
+
+/** A chave onde fica o último batimento. */
+export const CHAVE_BATIMENTO = 'ultimo_batimento'
+
+/**
+ * Deixa registrado que o motor bateu.
+ *
+ * Sem isto não há como saber se o agendador externo está de pé: uma fila
+ * parada parece igual a uma fila vazia, e a diferença entre as duas é um
+ * cliente esperando o disparo que nunca sai. A tela de administração lê daqui.
+ *
+ * Não derruba a batida se falhar — anotar é menos importante do que enviar.
+ */
+async function registrarBatimento(resumo: ResumoDaBatida): Promise<void> {
+  try {
+    await db
+      .insert(systemSettings)
+      .values({ key: CHAVE_BATIMENTO, value: resumo })
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: { value: resumo, updatedAt: new Date() },
+      })
+  } catch (erro) {
+    log.error('não deu para anotar o batimento', {
+      motivo: erro instanceof Error ? erro.message : 'desconhecido',
+    })
   }
 }
 

@@ -1,6 +1,14 @@
 'use client'
 
-import { useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import Link from 'next/link'
 import {
   CANAL_CODIGO,
@@ -408,36 +416,49 @@ export function Assistente({
     })
   }
 
+  /*
+   * Os dois disparos de ação vão dentro de `startTransition`.
+   *
+   * `useActionState` chamado fora de uma transição não é detalhe de estilo: o
+   * `criarDisparo` termina em `redirect`, e sem a transição a navegação
+   * acontece no meio da renderização — a árvore troca de forma e o React
+   * derruba a tela com "Rendered more hooks than during the previous render".
+   * Fora isso, `criando` e `testando` nunca ficariam verdadeiros.
+   */
   function mandarTeste() {
     if (!canalEscolhido) return
-    testar({
-      canal: canalEscolhido.canal,
-      configId: canalEscolhido.id,
-      numero: numeroDeTeste,
-      corpo,
-      mediaUrl: mediaUrl.trim() || null,
-      eleitoral,
+    startTransition(() => {
+      testar({
+        canal: canalEscolhido!.canal,
+        configId: canalEscolhido!.id,
+        numero: numeroDeTeste,
+        corpo,
+        mediaUrl: mediaUrl.trim() || null,
+        eleitoral,
+      })
     })
   }
 
   function mandarCriacao() {
     if (!canalEscolhido || impedimento) return
     const agendado = agendarEm ? new Date(agendarEm) : null
-    criar({
-      nome: nomeFinal,
-      canal: canalEscolhido.canal,
-      configId: canalEscolhido.id,
-      corpo,
-      mediaUrl: mediaUrl.trim() || null,
-      fontes,
-      ritmo,
-      quietStart: abreAs,
-      quietEnd: fechaAs,
-      eleitoral,
-      agendarPara:
-        quando === 'agendar' && agendado && !Number.isNaN(agendado.getTime())
-          ? agendado.toISOString()
-          : null,
+    startTransition(() => {
+      criar({
+        nome: nomeFinal,
+        canal: canalEscolhido!.canal,
+        configId: canalEscolhido!.id,
+        corpo,
+        mediaUrl: mediaUrl.trim() || null,
+        fontes,
+        ritmo,
+        quietStart: abreAs,
+        quietEnd: fechaAs,
+        eleitoral,
+        agendarPara:
+          quando === 'agendar' && agendado && !Number.isNaN(agendado.getTime())
+            ? agendado.toISOString()
+            : null,
+      })
     })
   }
 
