@@ -352,6 +352,8 @@ async function enviarUma(linha: LinhaParaEnviar, canais: Map<string, Canal>): Pr
 
 export type ResumoDaBatida = {
   soltas: number
+  /** Campanhas delegadas conferidas nesta batida. */
+  externas: number
   linhasCriadas: number
   tentados: number
   enviados: number
@@ -380,6 +382,23 @@ export async function bater(limite = LOTE_PADRAO): Promise<ResumoDaBatida> {
 
   const campanhasIniciadas = await iniciarAgendadas()
 
+  /*
+   * As delegadas andam por consulta, não por envio.
+   *
+   * Vem antes de reservar o lote porque é barato (poucas chamadas HTTP) e
+   * porque uma campanha aprovada agora deve aparecer como "enviando" na mesma
+   * batida em que o cliente olha a tela.
+   */
+  let externas = 0
+  try {
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    externas = (await sincronizarExternas()).conferidas
+  } catch (erro) {
+    log.error('a sincronização das externas falhou', {
+      motivo: erro instanceof Error ? erro.message : 'desconhecido',
+    })
+  }
+
   const lote = await reservarLote(limite)
   const canais = await carregarCanais([
     ...new Set(lote.map((l) => l.configId).filter((v): v is string => Boolean(v))),
@@ -400,6 +419,7 @@ export async function bater(limite = LOTE_PADRAO): Promise<ResumoDaBatida> {
 
   const resumo: ResumoDaBatida = {
     soltas,
+    externas,
     linhasCriadas,
     tentados: lote.length,
     enviados,

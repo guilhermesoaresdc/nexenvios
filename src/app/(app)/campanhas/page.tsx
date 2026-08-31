@@ -38,6 +38,7 @@ const STATUS: readonly CampaignStatus[] = campaignStatusEnum.enumValues
 const TOM_DO_STATUS: Record<CampaignStatus, TomDoChip> = {
   rascunho: 'neutro',
   preparando: 'azul',
+  aguardando: 'ambar',
   agendada: 'ciano',
   enviando: 'verde',
   pausada: 'ambar',

@@ -65,6 +65,43 @@ As regras que impedem a plataforma de se trancar por fora moram todas em
 
 Cada uma dessas regras tem teste em `tests/acessos.integracao.test.ts`.
 
+## Entrega delegada — Monitor de Envios
+
+Todo canal da Nex é mensagem a mensagem: o motor reserva a linha, manda uma,
+marca o resultado. O **Monitor de Envios** funciona ao contrário e por isso é o
+único provedor com caminho próprio no código.
+
+| | Canal normal | Monitor de Envios |
+|---|---|---|
+| O que sai | uma mensagem por vez | a campanha inteira, num POST |
+| A base | linhas em `dispatches` | um CSV anexado |
+| Quem faz o ritmo | nós (ritmo, jitter, janela) | a plataforma deles |
+| Aprovação | nenhuma | fila de análise humana do lado deles |
+| Progresso | linha a linha | agregado, por consulta |
+| Cobrança | quando cada mensagem sai | pela diferença a cada sincronização |
+
+Consequências que aparecem na tela, e não escondemos:
+
+- A campanha nasce **Aguardando aprovação** e não anda até alguém do outro lado
+  liberar. Nada é cobrado enquanto isso.
+- Rejeitada, ela vira cancelada com o motivo à vista.
+- **Não dá para pausar nem cancelar por aqui.** A API deles não expõe isso, e um
+  botão que mudasse só o nosso status faria o cliente achar que parou enquanto as
+  mensagens continuassem saindo.
+- Os controles de ritmo e janela de silêncio somem do assistente.
+
+O perfil (nome e foto que quem recebe vê) viaja junto da campanha, e são **dois**
+— o principal e um reserva, que a equipe deles usa se a Meta reprovar o primeiro.
+Os dois são obrigatórios no Monitor desde 01/09/2026.
+
+A frase de descadastro em campanha eleitoral é **deles**, não nossa: com
+`politica=true` eles acrescentam a linha que manda responder `2`, e quem escuta
+essa resposta é a plataforma deles. Mandar a nossa (`responda SAIR`) ensinaria ao
+destinatário uma palavra que ninguém do outro lado processa.
+
+O contrato de cobrança e de estado tem teste em
+`tests/monitor.integracao.test.ts`, contra um servidor falso.
+
 ## Stack
 
 Next.js 15 App Router · TypeScript · Drizzle ORM · PostgreSQL (Supabase) ·

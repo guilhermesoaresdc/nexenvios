@@ -287,6 +287,23 @@ export const campaigns = pgTable(
     audienceLabels: jsonb('audience_labels').notNull().default(sql`'[]'::jsonb`),
     trimmed: boolean('trimmed').notNull().default(false),
     eleitoral: boolean('eleitoral').notNull().default(false),
+    /*
+     * Campanha entregue por uma plataforma de fora. Quando `externalCode`
+     * existe, esta campanha NÃO tem linhas em `dispatches`: quem envia é o
+     * outro lado, e o que temos é o código de acompanhamento e o progresso
+     * agregado que o polling traz.
+     */
+    externalCode: text('external_code'),
+    externalProvider: text('external_provider'),
+    externalStatus: text('external_status'),
+    externalReason: text('external_reason'),
+    externalSyncedAt: timestamp('external_synced_at', { withTimezone: true }),
+    /** Quanto já foi cobrado. O progresso deles é acumulado, não incremental. */
+    externalBilled: integer('external_billed').notNull().default(0),
+    profileName: text('profile_name'),
+    profilePhotoUrl: text('profile_photo_url'),
+    profileName2: text('profile_name_2'),
+    profilePhotoUrl2: text('profile_photo_url_2'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: agora(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

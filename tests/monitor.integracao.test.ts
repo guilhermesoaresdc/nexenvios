@@ -1,0 +1,388 @@
+import { createServer, type Server, type ServerResponse } from 'node:http'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
+
+/**
+ * O Monitor de Envios, contra um servidor falso.
+ *
+ * O que precisa ser provado aqui não é que a chamada HTTP sai — é o contrato
+ * de dinheiro e de estado, que é onde um erro custa caro:
+ *
+ * - A campanha delegada NÃO cria linha em `dispatches`. Se criasse, o motor
+ *   tentaria enviar de novo o que a plataforma deles já mandou, e o cliente
+ *   pagaria duas vezes pela mesma mensagem.
+ * - O crédito sai pelo que ANDOU. O progresso deles é acumulado; cobrar o
+ *   número cheio a cada consulta debitaria a campanha inteira a cada minuto.
+ * - Rejeição vira campanha cancelada com o motivo à vista.
+ */
+
+const PORTA = 4703
+const BASE_FALSA = `http://127.0.0.1:${PORTA}`
+
+process.env.MONITOR_API_BASE = BASE_FALSA
+
+const temBanco = Boolean(process.env.DATABASE_URL)
+const cenario = temBanco ? describe : describe.skip
+
+type EstadoFalso = {
+  aprovacao: 'aguardando' | 'aprovado' | 'rejeitado'
+  motivo: string | null
+  emExecucao: boolean
+  statusExecucao: string | null
+  enviadas: number
+  recebidas: number
+  recebeuUpload: Record<string, string> | null
+  baseRecebida: string
+}
+
+const estado: EstadoFalso = {
+  aprovacao: 'aguardando',
+  motivo: null,
+  emExecucao: false,
+  statusExecucao: null,
+  enviadas: 0,
+  recebidas: 0,
+  recebeuUpload: null,
+  baseRecebida: '',
+}
+
+let servidor: Server | undefined
+let orgId = ''
+let configId = ''
+
+function json(res: ServerResponse, corpo: unknown) {
+  res.writeHead(200, { 'content-type': 'application/json' })
+  res.end(JSON.stringify(corpo))
+}
+
+cenario('Monitor de Envios', () => {
+  beforeAll(async () => {
+    servidor = createServer((req, res) => {
+      const url = new URL(req.url ?? '/', BASE_FALSA)
+
+      if (url.pathname.endsWith('receber_campanha_externa.php')) {
+        const pedacos: Buffer[] = []
+        req.on('data', (p: Buffer) => pedacos.push(p))
+        req.on('end', () => {
+          const bruto = Buffer.concat(pedacos).toString('utf8')
+          const campos: Record<string, string> = {}
+          // multipart cru: o suficiente para conferir o que mandamos.
+          for (const parte of bruto.split('--')) {
+            const nome = /name="([^"]+)"/.exec(parte)?.[1]
+            if (!nome) continue
+            const valor = parte.split('\r\n\r\n').slice(1).join('\r\n\r\n').trimEnd()
+            campos[nome] = valor
+          }
+          estado.recebeuUpload = campos
+          estado.baseRecebida = campos.base_dados ?? ''
+          json(res, {
+            success: true,
+            message: 'Campanha enviada para análise.',
+            id: 3042,
+            codigo_acompanhamento: 'codigo-falso-123',
+          })
+        })
+        return
+      }
+
+      if (url.pathname.endsWith('status_aprovacao.php')) {
+        json(res, {
+          success: true,
+          data: {
+            codigo_acompanhamento: 'codigo-falso-123',
+            status: estado.aprovacao,
+            status_rotulo: estado.aprovacao,
+            motivo_rejeicao: estado.motivo,
+            em_execucao: estado.emExecucao,
+            status_execucao: estado.statusExecucao,
+          },
+        })
+        return
+      }
+
+      if (url.pathname.endsWith('status_campanha.php')) {
+        json(res, {
+          success: true,
+          data: {
+            progresso: 50,
+            quantidadeEnviada: estado.enviadas,
+            quantidadeRecebida: estado.recebidas,
+          },
+        })
+        return
+      }
+
+      if (url.pathname.endsWith('respostas_campanha.php')) {
+        json(res, { success: true, data: [] })
+        return
+      }
+
+      if (url.pathname.endsWith('.png')) {
+        // PNG mínimo de 1x1: o cliente baixa a foto para repassar como arquivo.
+        res.writeHead(200, { 'content-type': 'image/png' })
+        res.end(
+          Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+            'base64',
+          ),
+        )
+        return
+      }
+
+      res.writeHead(404)
+      res.end()
+    })
+    await new Promise<void>((ok) => servidor!.listen(PORTA, '127.0.0.1', ok))
+
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+    const cripto = await import('@/lib/cripto')
+
+    const [org] = await db
+      .insert(esquema.organizations)
+      .values({ name: 'Delegada LTDA', slug: `del-${Date.now()}`, credits: '1000' })
+      .returning({ id: esquema.organizations.id })
+    orgId = org!.id
+
+    const [canal] = await db
+      .insert(esquema.channelConfigs)
+      .values({
+        orgId,
+        channel: 'whatsapp_oficial',
+        provider: 'monitor_envios',
+        label: 'Monitor falso',
+        credentials: cripto.guardarSegredo({ apiToken: 'token-de-teste' }),
+      })
+      .returning({ id: esquema.channelConfigs.id })
+    configId = canal!.id
+
+    await db.insert(esquema.contacts).values(
+      Array.from({ length: 8 }, (_, i) => ({
+        orgId,
+        phone: `5511970${String(100000 + i)}`,
+        name: `Pessoa ${i + 1}`,
+      })),
+    )
+
+    await db
+      .insert(esquema.channelPrices)
+      .values({ orgId, channel: 'whatsapp_oficial', price: '0.10' })
+  })
+
+  afterAll(async () => {
+    servidor?.close()
+    if (orgId) {
+      const { db } = await import('@/db')
+      const esquema = await import('@/db/schema')
+      await db.delete(esquema.organizations).where(eq(esquema.organizations.id, orgId))
+    }
+  })
+
+  const perfil = {
+    nome: 'Moveis Silva',
+    fotoUrl: `${BASE_FALSA}/avatar.png`,
+    nome2: 'Silva Moveis',
+    fotoUrl2: `${BASE_FALSA}/avatar-2.png`,
+  }
+
+  let campanhaId = ''
+
+  it('submete a campanha inteira e não cria linha de envio nenhuma', async () => {
+    const servico = await import('@/lib/campanhas/servico')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    const criada = await servico.criarCampanha(orgId, null, {
+      nome: 'Delegada de teste',
+      canal: 'whatsapp_oficial',
+      configId,
+      corpo: 'Olá {{primeiro_nome}}!',
+      fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
+      perfil,
+    })
+
+    expect(criada.ok).toBe(true)
+    if (!criada.ok) return
+    campanhaId = criada.campanhaId
+    expect(criada.destinatarios).toBe(8)
+
+    const [campanha] = await db
+      .select()
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, campanhaId))
+
+    // O estado que importa: submetida, esperando o outro lado.
+    expect(campanha!.status).toBe('aguardando')
+    expect(campanha!.externalCode).toBe('codigo-falso-123')
+    expect(campanha!.externalProvider).toBe('monitor_envios')
+
+    // E, principalmente: nenhuma linha para o motor tentar enviar de novo.
+    const linhas = await db
+      .select()
+      .from(esquema.dispatches)
+      .where(eq(esquema.dispatches.campaignId, campanhaId))
+    expect(linhas).toHaveLength(0)
+  })
+
+  it('manda os dois perfis e a base com um número por linha', () => {
+    expect(estado.recebeuUpload?.perfil_nome).toBe('Moveis Silva')
+    expect(estado.recebeuUpload?.perfil_nome_2).toBe('Silva Moveis')
+    expect(estado.recebeuUpload?.nome_arquivo_original).toBe(campanhaId)
+
+    const linhas = estado.baseRecebida.trim().split('\n')
+    expect(linhas[0]).toBe('telefone,nome')
+    expect(linhas).toHaveLength(9)
+    expect(linhas[1]).toMatch(/^5511970\d+,"Pessoa/)
+  })
+
+  it('enquanto está na fila deles, não cobra nada', async () => {
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    await db
+      .update(esquema.campaigns)
+      .set({ externalSyncedAt: null })
+      .where(eq(esquema.campaigns.id, campanhaId))
+
+    const resumo = await sincronizarExternas()
+    expect(resumo.conferidas).toBe(1)
+
+    const lancamentos = await db
+      .select()
+      .from(esquema.creditLedger)
+      .where(eq(esquema.creditLedger.campaignId, campanhaId))
+    expect(lancamentos).toHaveLength(0)
+  })
+
+  it('cobra só o que andou desde a última conferência', async () => {
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    estado.aprovacao = 'aprovado'
+    estado.emExecucao = true
+    estado.statusExecucao = 'Enviando'
+    estado.enviadas = 3
+
+    await db
+      .update(esquema.campaigns)
+      .set({ externalSyncedAt: null })
+      .where(eq(esquema.campaigns.id, campanhaId))
+    await sincronizarExternas()
+
+    let [campanha] = await db
+      .select()
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, campanhaId))
+    expect(campanha!.status).toBe('enviando')
+    expect(campanha!.sent).toBe(3)
+    expect(campanha!.externalBilled).toBe(3)
+    expect(Number(campanha!.actualCost)).toBeCloseTo(0.3, 4)
+
+    // Andou mais duas. Só as duas novas podem ser cobradas.
+    estado.enviadas = 5
+    await db
+      .update(esquema.campaigns)
+      .set({ externalSyncedAt: null })
+      .where(eq(esquema.campaigns.id, campanhaId))
+    await sincronizarExternas()
+    ;[campanha] = await db
+      .select()
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, campanhaId))
+
+    expect(campanha!.externalBilled).toBe(5)
+    expect(Number(campanha!.actualCost)).toBeCloseTo(0.5, 4)
+
+    const lancamentos = await db
+      .select()
+      .from(esquema.creditLedger)
+      .where(eq(esquema.creditLedger.campaignId, campanhaId))
+    expect(lancamentos).toHaveLength(2)
+    const somado = lancamentos.reduce((s, l) => s + Number(l.delta), 0)
+    expect(somado).toBeCloseTo(-0.5, 4)
+  })
+
+  it('uma consulta sem progresso novo não cobra de novo', async () => {
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    await db
+      .update(esquema.campaigns)
+      .set({ externalSyncedAt: null })
+      .where(eq(esquema.campaigns.id, campanhaId))
+    await sincronizarExternas()
+
+    const lancamentos = await db
+      .select()
+      .from(esquema.creditLedger)
+      .where(eq(esquema.creditLedger.campaignId, campanhaId))
+    expect(lancamentos).toHaveLength(2)
+  })
+
+  it('não deixa pausar nem cancelar o que já é deles', async () => {
+    const servico = await import('@/lib/campanhas/servico')
+    expect(await servico.pausar(orgId, campanhaId)).toBe(false)
+    expect(await servico.cancelar(orgId, campanhaId)).toBe(-1)
+  })
+
+  it('rejeição vira campanha cancelada com o motivo à vista', async () => {
+    const servico = await import('@/lib/campanhas/servico')
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    const criada = await servico.criarCampanha(orgId, null, {
+      nome: 'Vai ser rejeitada',
+      canal: 'whatsapp_oficial',
+      configId,
+      corpo: 'Texto qualquer',
+      fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
+      perfil,
+    })
+    expect(criada.ok).toBe(true)
+    if (!criada.ok) return
+
+    estado.aprovacao = 'rejeitado'
+    estado.motivo = 'Conteúdo contra os termos de uso.'
+
+    await db
+      .update(esquema.campaigns)
+      .set({ externalSyncedAt: null })
+      .where(eq(esquema.campaigns.id, criada.campanhaId))
+    const resumo = await sincronizarExternas()
+    expect(resumo.rejeitadas).toBeGreaterThanOrEqual(1)
+
+    const [campanha] = await db
+      .select()
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, criada.campanhaId))
+    expect(campanha!.status).toBe('cancelada')
+    expect(campanha!.externalReason).toBe('Conteúdo contra os termos de uso.')
+  })
+
+  it('recusa perfil reserva igual ao principal antes de gastar o upload', async () => {
+    const { conferirSubmissao } = await import('@/lib/channels/monitor')
+    const erro = conferirSubmissao({
+      nome: 'x',
+      copy: 'oi',
+      perfil: { nome: 'Igual', fotoUrl: 'a', nome2: 'igual', fotoUrl2: 'b' },
+      base: { nomeArquivo: 'b.csv', conteudo: 'telefone\n5511' },
+    })
+    expect(erro).toMatch(/diferente do principal/)
+  })
+
+  it('recusa copy acima do limite com mídia', async () => {
+    const { conferirSubmissao, LIMITES } = await import('@/lib/channels/monitor')
+    const erro = conferirSubmissao({
+      nome: 'x',
+      copy: 'a'.repeat(LIMITES.copyComMidia + 1),
+      perfil: { nome: 'Um', fotoUrl: 'a', nome2: 'Dois', fotoUrl2: 'b' },
+      base: { nomeArquivo: 'b.csv', conteudo: 'telefone\n5511' },
+      mediaUrl: 'https://exemplo/x.jpg',
+    })
+    expect(erro).toMatch(new RegExp(String(LIMITES.copyComMidia)))
+  })
+})

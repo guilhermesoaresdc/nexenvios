@@ -37,6 +37,7 @@ export const metadata: Metadata = { title: 'Campanha' }
 const TOM_DO_STATUS: Record<CampaignStatus, TomDoChip> = {
   rascunho: 'neutro',
   preparando: 'azul',
+  aguardando: 'ambar',
   agendada: 'ciano',
   enviando: 'verde',
   pausada: 'ambar',
@@ -134,6 +135,50 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
           <Aviso tom="info" titulo="Preparando a base…" className="mb-5">
             {numero(campanha.pendentes)} de {numero(campanha.total)} linhas prontas. Bases grandes
             levam alguns minutos para virar fila — esta tela se atualiza sozinha, pode deixar aberta.
+          </Aviso>
+        </>
+      ) : null}
+
+      {campanha.externalCode ? (
+        <>
+          {campanha.externalStatus === 'aguardando' ? <AtualizaSozinho /> : null}
+          <Aviso
+            tom={
+              campanha.externalStatus === 'rejeitado'
+                ? 'erro'
+                : campanha.externalStatus === 'aprovado'
+                  ? 'ok'
+                  : 'alerta'
+            }
+            titulo={
+              campanha.externalStatus === 'rejeitado'
+                ? 'O Monitor de Envios recusou este disparo'
+                : campanha.externalStatus === 'aprovado'
+                  ? 'Aprovado e rodando no Monitor de Envios'
+                  : 'Na fila de aprovação do Monitor de Envios'
+            }
+            className="mb-5"
+          >
+            {campanha.externalStatus === 'rejeitado' ? (
+              <>
+                Motivo: <b>{campanha.externalReason ?? 'não informado'}</b>. Ajuste o que foi
+                apontado e crie o disparo de novo — nada foi cobrado.
+              </>
+            ) : campanha.externalStatus === 'aprovado' ? (
+              <>
+                Quem controla o ritmo agora é a plataforma deles. Os números abaixo vêm de lá e
+                atualizam a cada batida do motor
+                {campanha.externalSyncedAt ? ` — última conferência ${quando(campanha.externalSyncedAt)}` : ''}.
+              </>
+            ) : (
+              <>
+                Este disparo foi entregue e espera a análise de um administrador do Monitor. Nada
+                sai e nada é cobrado até lá.
+              </>
+            )}
+            <span className="mt-2 block font-mono text-[.74rem] opacity-75">
+              código {campanha.externalCode}
+            </span>
           </Aviso>
         </>
       ) : null}

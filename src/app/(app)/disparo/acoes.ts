@@ -193,6 +193,20 @@ const esquemaCriacao = z.object({
   eleitoral: z.boolean(),
   /** ISO absoluto, montado no navegador — nulo é "começa agora". */
   agendarPara: z.string().nullable(),
+  /**
+   * O perfil do WhatsApp, exigido pelo Monitor de Envios.
+   *
+   * Nulo nos outros canais: lá o perfil é do número, não do disparo.
+   */
+  perfil: z
+    .object({
+      nome: z.string().trim().min(1).max(25),
+      fotoUrl: z.url(),
+      nome2: z.string().trim().min(1).max(25),
+      fotoUrl2: z.url(),
+    })
+    .nullable()
+    .optional(),
 })
 
 export type EntradaDaCriacao = z.infer<typeof esquemaCriacao>
@@ -246,6 +260,7 @@ export async function criarDisparo(
     quietEnd: dados.data.quietEnd,
     eleitoral: dados.data.eleitoral,
     agendarPara,
+    perfil: dados.data.perfil ?? null,
   })
 
   if (!resultado.ok) return { erro: resultado.erro }

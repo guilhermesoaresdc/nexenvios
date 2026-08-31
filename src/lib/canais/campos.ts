@@ -136,6 +136,42 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
       exemplo: 'NEXENVIOS',
     },
   ],
+  monitor_envios: [
+    {
+      nome: 'apiToken',
+      rotulo: 'Token de acesso',
+      tipo: 'senha',
+      obrigatorio: true,
+      segredo: true,
+      dica: 'O api_token do seu cadastro no Monitor de Envios. Não é a Chave de Acesso, que é o que eles mandam para você.',
+    },
+    {
+      nome: 'perfilNome',
+      rotulo: 'Perfil padrão — nome',
+      dica: 'Até 25 caracteres. Tem que ser nome comercial: nada de frase, promessa ou termo de aposta.',
+      exemplo: 'Moveis Silva',
+    },
+    {
+      nome: 'perfilFoto',
+      rotulo: 'Perfil padrão — foto',
+      tipo: 'url',
+      dica: 'Quadrada, no mínimo 192×192, até 5 MB.',
+      exemplo: 'https://seusite.com.br/avatar.png',
+    },
+    {
+      nome: 'perfilNome2',
+      rotulo: 'Perfil reserva — nome',
+      dica: 'Obrigatório no Monitor desde 01/09/2026. A equipe deles usa se a Meta reprovar o principal — precisa ser diferente dele.',
+      exemplo: 'Silva Moveis',
+    },
+    {
+      nome: 'perfilFoto2',
+      rotulo: 'Perfil reserva — foto',
+      tipo: 'url',
+      dica: 'Mesmas regras da principal, e precisa ser uma imagem diferente.',
+      exemplo: 'https://seusite.com.br/avatar-2.png',
+    },
+  ],
   generico: GENERICO,
 }
 

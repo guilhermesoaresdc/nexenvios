@@ -88,6 +88,11 @@ export type CampanhaDetalhada = LinhaDeCampanha & {
   aparado: boolean
   eleitoral: boolean
   precoUnitario: string
+  /** Preenchido só quando a entrega foi delegada (Monitor de Envios). */
+  externalCode: string | null
+  externalStatus: string | null
+  externalReason: string | null
+  externalSyncedAt: Date | null
 }
 
 export async function verCampanha(
@@ -99,7 +104,9 @@ export async function verCampanha(
            c.body AS corpo, c.media_url AS "mediaUrl", cc.label AS "canalNome",
            c.rate_per_minute AS ritmo, c.jitter_ms AS jitter,
            c.quiet_start AS "janelaInicio", c.quiet_end AS "janelaFim",
-           c.trimmed AS aparado, c.eleitoral, c.unit_price::text AS "precoUnitario"
+           c.trimmed AS aparado, c.eleitoral, c.unit_price::text AS "precoUnitario",
+           c.external_code AS "externalCode", c.external_status AS "externalStatus",
+           c.external_reason AS "externalReason", c.external_synced_at AS "externalSyncedAt"
       FROM campaigns c
       LEFT JOIN users u ON u.id = c.created_by
       LEFT JOIN channel_configs cc ON cc.id = c.config_id

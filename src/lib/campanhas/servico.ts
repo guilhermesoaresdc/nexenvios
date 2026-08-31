@@ -15,6 +15,8 @@ import {
   type Fonte,
 } from './publico'
 
+import { entregarAoMonitor, PROVEDOR as PROVEDOR_EXTERNO } from './externa'
+
 const log = criarLog('campanha')
 
 /**
@@ -66,6 +68,17 @@ export type DadosDaCampanha = {
   eleitoral?: boolean
   /** Nulo = começa assim que ficar pronta. */
   agendarPara?: Date | null
+  /**
+   * O perfil que aparece no WhatsApp de quem recebe.
+   *
+   * Só o Monitor de Envios usa: lá o perfil viaja junto da campanha, e são
+   * dois (o principal e o reserva, para a equipe deles trocar se a Meta
+   * reprovar o primeiro). Nos outros canais o perfil é do número, não do
+   * disparo, e este campo é ignorado.
+   */
+  perfil?: { nome: string; fotoUrl: string; nome2: string; fotoUrl2: string } | null
+  /** Documento e partido, exigidos pelo Monitor em campanha eleitoral. */
+  politica?: { documento: string; partido: string } | null
 }
 
 export type Orcamento = {
@@ -172,7 +185,12 @@ export async function criarCampanha(
    * alheia, e a conta errada pagaria a fatura.
    */
   const [canal] = await db
-    .select({ id: channelConfigs.id, canal: channelConfigs.channel, ativo: channelConfigs.active })
+    .select({
+      id: channelConfigs.id,
+      canal: channelConfigs.channel,
+      ativo: channelConfigs.active,
+      provedor: channelConfigs.provider,
+    })
     .from(channelConfigs)
     .where(
       and(
@@ -250,11 +268,69 @@ export async function criarCampanha(
       estimatedCost: String(orcamento.total),
       materialized: false,
       materializeAt: inicio,
+      profileName: dados.perfil?.nome ?? null,
+      profilePhotoUrl: dados.perfil?.fotoUrl ?? null,
+      profileName2: dados.perfil?.nome2 ?? null,
+      profilePhotoUrl2: dados.perfil?.fotoUrl2 ?? null,
       createdBy: usuarioId ?? null,
     })
     .returning({ id: campaigns.id })
 
   if (!campanha) return { ok: false, erro: 'Não foi possível criar a campanha.' }
+
+  /*
+   * Campanha delegada não materializa linha nenhuma.
+   *
+   * O Monitor de Envios recebe a campanha inteira e entrega por conta própria;
+   * não há o que reservar aqui. Criar uma linha por destinatário só para
+   * marcá-la "enviada" a partir de um número agregado seria inventar histórico
+   * que não temos.
+   */
+  if (canal.provedor === PROVEDOR_EXTERNO) {
+    const perfil = dados.perfil
+    if (!perfil) {
+      return { ok: false, erro: 'O Monitor de Envios exige o perfil que aparece no WhatsApp.' }
+    }
+
+    const entrega = await entregarAoMonitor({
+      campanhaId: campanha.id,
+      orgId,
+      nome: dados.nome,
+      // Cru: quem acrescenta a frase de descadastro é a plataforma deles, com
+      // a palavra que os robôs deles realmente escutam.
+      corpo: dados.corpo,
+      fontes,
+      configId: canal.id,
+      perfil,
+      mediaUrl: dados.mediaUrl ?? null,
+      agendarPara: dados.agendarPara ?? null,
+      politica: eleitoral ? (dados.politica ?? null) : null,
+    })
+
+    if (!entrega.ok) {
+      // A campanha fica registrada como falha em vez de sumir: o cliente
+      // precisa ver o que aconteceu com o disparo que ele mandou criar.
+      await db
+        .update(campaigns)
+        .set({ status: 'falhou', externalReason: entrega.erro, updatedAt: new Date() })
+        .where(eq(campaigns.id, campanha.id))
+      return { ok: false, erro: entrega.erro }
+    }
+
+    log.info('campanha criada (delegada)', {
+      campanha: campanha.id,
+      destinatarios: entrega.total,
+      canal: dados.canal,
+    })
+
+    return {
+      ok: true,
+      campanhaId: campanha.id,
+      destinatarios: entrega.total,
+      custo: entrega.total * orcamento.precoPorEnvio,
+      aparado: orcamento.publico.aparado,
+    }
+  }
 
   /*
    * Materializa o começo agora, dentro do próprio pedido. Para a maioria das
@@ -444,7 +520,25 @@ export async function materializarPendentes(orcamentoDeLinhas: number): Promise<
 
 // ───────────────────────────────────────────────────────────── controle
 
+/**
+ * Campanha delegada não pausa nem cancela por aqui.
+ *
+ * O Monitor de Envios não expõe rota para isso: depois de submetida, a
+ * campanha é deles. Um botão que muda só o nosso status daria ao cliente a
+ * impressão de que parou — e as mensagens continuariam saindo.
+ */
+export async function eDelegada(orgId: string, campanhaId: string): Promise<boolean> {
+  const [linha] = await db
+    .select({ codigo: campaigns.externalCode })
+    .from(campaigns)
+    .where(and(eq(campaigns.id, campanhaId), eq(campaigns.orgId, orgId)))
+    .limit(1)
+  return Boolean(linha?.codigo)
+}
+
 export async function pausar(orgId: string, campanhaId: string): Promise<boolean> {
+  if (await eDelegada(orgId, campanhaId)) return false
+
   const linhas = await db
     .update(campaigns)
     .set({ status: 'pausada', pausedAt: new Date() })
@@ -504,6 +598,8 @@ export async function retomar(orgId: string, campanhaId: string): Promise<boolea
 
 /** Cancelar mata o que ainda não saiu. O que já saiu, já foi — e já foi cobrado. */
 export async function cancelar(orgId: string, campanhaId: string): Promise<number> {
+  if (await eDelegada(orgId, campanhaId)) return -1
+
   const [campanha] = await db
     .select({ id: campaigns.id })
     .from(campaigns)

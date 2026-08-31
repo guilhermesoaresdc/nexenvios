@@ -27,6 +27,9 @@ export const campaignStatusEnum = pgEnum('campaign_status', [
   // Materializando as linhas de envio. Uma base de um milhão não cabe numa
   // requisição — a campanha fica aqui enquanto o motor termina de prepará-la.
   'preparando',
+  // Submetida a uma plataforma de fora e esperando a aprovação DELES. Não
+  // depende mais de nós — só de alguém do outro lado liberar.
+  'aguardando',
   'agendada',
   'enviando',
   'pausada',
@@ -90,7 +93,7 @@ export const CANAL_CODIGO: Record<Channel, string> = {
 
 /** Provedores que cada canal aceita. `generico` é HTTP configurável na tela. */
 export const CANAL_PROVEDORES: Record<Channel, readonly string[]> = {
-  whatsapp_oficial: ['meta_cloud', 'generico'],
+  whatsapp_oficial: ['meta_cloud', 'monitor_envios', 'generico'],
   whatsapp_nao_oficial: ['evolution', 'generico'],
   sms: ['smsdev', 'comtele', 'generico'],
   rcs: ['generico'],
@@ -99,6 +102,7 @@ export const CANAL_PROVEDORES: Record<Channel, readonly string[]> = {
 
 export const PROVEDOR_LABEL: Record<string, string> = {
   meta_cloud: 'Meta Cloud API',
+  monitor_envios: 'Monitor de Envios',
   evolution: 'Evolution API',
   smsdev: 'SMSDev',
   comtele: 'Comtele',
@@ -112,6 +116,7 @@ export function nomeDoProvedor(provider: string): string {
 export const STATUS_CAMPANHA_LABEL: Record<CampaignStatus, string> = {
   rascunho: 'Rascunho',
   preparando: 'Preparando',
+  aguardando: 'Aguardando aprovação',
   agendada: 'Agendada',
   enviando: 'Enviando',
   pausada: 'Pausada',

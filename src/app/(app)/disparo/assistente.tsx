@@ -276,6 +276,12 @@ export function Assistente({
 
   const [numeroDeTeste, setNumeroDeTeste] = useState('')
 
+  // Só o Monitor de Envios usa: lá o perfil viaja junto da campanha.
+  const [perfilNome, setPerfilNome] = useState('')
+  const [perfilFoto, setPerfilFoto] = useState('')
+  const [perfilNome2, setPerfilNome2] = useState('')
+  const [perfilFoto2, setPerfilFoto2] = useState('')
+
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null)
   const [orcando, setOrcando] = useState(false)
   const [erroDoOrcamento, setErroDoOrcamento] = useState<string | null>(null)
@@ -288,6 +294,10 @@ export function Assistente({
 
   const canalEscolhido = canais.find((c) => c.id === configId) ?? null
   const canal = canalEscolhido?.canal ?? null
+  const peloMonitor = canalEscolhido?.provedor === 'monitor_envios'
+  const perfil = peloMonitor
+    ? { nome: perfilNome.trim(), fotoUrl: perfilFoto.trim(), nome2: perfilNome2.trim(), fotoUrl2: perfilFoto2.trim() }
+    : null
 
   const fontes: Fonte[] = useMemo(() => {
     if (todaABase) return [{ tipo: 'todos', chave: 'todos', rotulo: 'Toda a base' }]
@@ -376,6 +386,16 @@ export function Assistente({
       return `Faltam ${moeda(faltaEmCreditos)} em créditos para este disparo. Peça uma recarga ou reduza o público.`
     }
     if (quando === 'agendar' && !agendarEm) return 'Escolha a data e a hora do agendamento.'
+    if (peloMonitor && perfil) {
+      if (!perfil.nome || !perfil.fotoUrl) return 'Preencha o perfil principal — nome e foto.'
+      if (!perfil.nome2 || !perfil.fotoUrl2) return 'Preencha o perfil reserva — nome e foto.'
+      if (perfil.nome.toLowerCase() === perfil.nome2.toLowerCase()) {
+        return 'O perfil reserva precisa ter um nome diferente do principal.'
+      }
+      if (perfil.fotoUrl === perfil.fotoUrl2) {
+        return 'A foto do perfil reserva precisa ser diferente da do principal.'
+      }
+    }
     return null
   }
 
@@ -458,6 +478,7 @@ export function Assistente({
           quando === 'agendar' && agendado && !Number.isNaN(agendado.getTime())
             ? agendado.toISOString()
             : null,
+        perfil,
       })
     })
   }
@@ -783,8 +804,16 @@ export function Assistente({
                   />
                 </Campo>
 
+                {peloMonitor ? (
+                  <Aviso tom="info" titulo="O ritmo aqui é da plataforma deles">
+                    O Monitor de Envios recebe a campanha inteira e entrega no ritmo e na janela que
+                    eles definem. Não adianta escolher aqui — por isso esses controles não aparecem.
+                  </Aviso>
+                ) : null}
+
                 <Campo
                   rotulo="Ritmo"
+                  className={peloMonitor ? 'hidden' : undefined}
                   dica={
                     destinatarios > 0
                       ? `Nesse ritmo, o disparo leva cerca de ${tempo} para terminar.`
@@ -811,7 +840,7 @@ export function Assistente({
                   </div>
                 </Campo>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className={cn('grid gap-4 sm:grid-cols-2', peloMonitor && 'hidden')}>
                   <Campo rotulo="Só envia a partir das">
                     <Selecao value={abreAs} onChange={(e) => setAbreAs(Number(e.target.value))}>
                       {HORAS.map((h) => (
@@ -831,7 +860,7 @@ export function Assistente({
                     </Selecao>
                   </Campo>
                 </div>
-                <p className="-mt-1 text-[.8rem] leading-relaxed text-muted">
+                <p className={cn('-mt-1 text-[.8rem] leading-relaxed text-muted', peloMonitor && 'hidden')}>
                   {abreAs === fechaAs
                     ? 'Sem janela de silêncio: o disparo envia a qualquer hora do dia.'
                     : `Fora dessa faixa o disparo fica em silêncio e retoma às ${String(abreAs).padStart(2, '0')}:00. A última mensagem sai antes das ${String(fechaAs).padStart(2, '0')}:00.`}
@@ -917,6 +946,69 @@ export function Assistente({
               </div>
             </Pad>
 
+            {peloMonitor ? (
+              <Pad>
+                <PadTitulo
+                  titulo="Perfil no WhatsApp"
+                  descricao="É o nome e a foto que quem recebe vê. O Monitor de Envios exige os dois perfis: o principal e um reserva, para a equipe deles trocar se a Meta reprovar o primeiro."
+                />
+                <div className="space-y-4 p-6">
+                  <Aviso tom="info">
+                    O nome precisa ser comercial — <b>Móveis Silva</b>, <b>Padaria Aurora</b>. Frase,
+                    promessa, &quot;Oficial&quot; ou termo de aposta fazem a Meta banir o número, e o
+                    Monitor recusa antes disso.
+                  </Aviso>
+
+                  <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                    <Campo rotulo="Perfil principal — nome" obrigatorio dica="Até 25 caracteres.">
+                      <Entrada
+                        value={perfilNome}
+                        onChange={(e) => setPerfilNome(e.target.value)}
+                        maxLength={25}
+                        placeholder="Moveis Silva"
+                      />
+                    </Campo>
+                    <Campo
+                      rotulo="Perfil principal — foto"
+                      obrigatorio
+                      dica="Quadrada, mínimo 192×192, até 5 MB."
+                    >
+                      <Entrada
+                        type="url"
+                        value={perfilFoto}
+                        onChange={(e) => setPerfilFoto(e.target.value)}
+                        placeholder="https://seusite.com.br/avatar.png"
+                      />
+                    </Campo>
+                    <Campo
+                      rotulo="Perfil reserva — nome"
+                      obrigatorio
+                      dica="Precisa ser diferente do principal."
+                    >
+                      <Entrada
+                        value={perfilNome2}
+                        onChange={(e) => setPerfilNome2(e.target.value)}
+                        maxLength={25}
+                        placeholder="Silva Moveis"
+                      />
+                    </Campo>
+                    <Campo
+                      rotulo="Perfil reserva — foto"
+                      obrigatorio
+                      dica="Uma imagem diferente da principal."
+                    >
+                      <Entrada
+                        type="url"
+                        value={perfilFoto2}
+                        onChange={(e) => setPerfilFoto2(e.target.value)}
+                        placeholder="https://seusite.com.br/avatar-2.png"
+                      />
+                    </Campo>
+                  </div>
+                </div>
+              </Pad>
+            ) : null}
+
             <Pad>
               <PadTitulo titulo="Confira antes de disparar" />
               <div className="p-6">
@@ -972,8 +1064,9 @@ export function Assistente({
                   {criando ? 'Criando o disparo…' : 'Criar disparo'}
                 </Botao>
                 <p className="mt-3 text-center text-[.78rem] leading-relaxed text-muted">
-                  O crédito só sai quando cada mensagem sai. Dá para pausar ou cancelar a campanha a
-                  qualquer momento.
+                  {peloMonitor
+                    ? 'Este disparo vai para a fila de aprovação do Monitor de Envios. Depois de aprovado, quem controla o ritmo é a plataforma deles — e a campanha não pode mais ser pausada por aqui.'
+                    : 'O crédito só sai quando cada mensagem sai. Dá para pausar ou cancelar a campanha a qualquer momento.'}
                 </p>
               </div>
             </Pad>
@@ -1042,7 +1135,7 @@ export function Assistente({
                 valor={moeda(orcamento?.precoPorEnvio ?? canalEscolhido?.preco ?? 0)}
               />
               <LinhaResumo rotulo="Ritmo" valor={`${ritmo}/min`} />
-              <LinhaResumo rotulo="Duração estimada" valor={tempo} />
+              {peloMonitor ? null : <LinhaResumo rotulo="Duração estimada" valor={tempo} />}
             </dl>
 
             <div className="mt-4 rounded-[12px] bg-navy px-4 py-3.5 text-white">

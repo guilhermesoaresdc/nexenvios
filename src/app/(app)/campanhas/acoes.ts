@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { verCampanha } from '@/db/queries/campanhas'
 import type { CampaignStatus } from '@/db/schema/enums'
 import { exigirEscrita, exigirUsuario, type UsuarioAutenticado } from '@/lib/auth/atual'
-import { cancelar, pausar, retomar } from '@/lib/campanhas/servico'
+import { cancelar, eDelegada, pausar, retomar } from '@/lib/campanhas/servico'
 import { numero } from '@/lib/ui'
 
 /**
@@ -51,6 +51,10 @@ export async function pausarCampanha(campanhaId: string): Promise<EstadoDoContro
 
   const id = identificador.safeParse(campanhaId)
   if (!id.success) return { erro: 'Campanha não encontrada.' }
+
+  if (await eDelegada(usuario.orgId, id.data)) {
+    return { erro: 'Este disparo foi entregue ao Monitor de Envios e agora é gerenciado por lá. Fale com a Nex Envios para interromper.' }
+  }
 
   const pausou = await pausar(usuario.orgId, id.data)
   if (!pausou) {
@@ -98,6 +102,10 @@ export async function cancelarCampanha(campanhaId: string): Promise<EstadoDoCont
   }
 
   const canceladas = await cancelar(usuario.orgId, id.data)
+  // -1 é a recusa da campanha delegada: o lado de lá não expõe cancelamento,
+  // e mudar só o nosso status faria o cliente achar que parou.
+  if (canceladas < 0) return { erro: 'Este disparo foi entregue ao Monitor de Envios e agora é gerenciado por lá. Fale com a Nex Envios para interromper.' }
+
   revalidar(id.data)
 
   return {
