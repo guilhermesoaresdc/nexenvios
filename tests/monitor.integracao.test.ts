@@ -374,12 +374,25 @@ cenario('Monitor de Envios', () => {
     expect(erro).toMatch(/diferente do principal/)
   })
 
+  it('recusa nome de perfil que a Meta reprova, antes de gastar o upload', async () => {
+    const { conferirSubmissao } = await import('@/lib/channels/monitor')
+    const erro = conferirSubmissao({
+      nome: 'x',
+      copy: 'oi',
+      // "Turbobet" tem "bet" colado: a Meta bane o número por isso.
+      perfil: { nome: 'Turbobet', fotoUrl: 'a', nome2: 'Silva Moveis', fotoUrl2: 'b' },
+      base: { nomeArquivo: 'b.csv', conteudo: 'telefone\n5511' },
+    })
+    expect(erro).toMatch(/Perfil principal/)
+    expect(erro).toMatch(/bet/)
+  })
+
   it('recusa copy acima do limite com mídia', async () => {
     const { conferirSubmissao, LIMITES } = await import('@/lib/channels/monitor')
     const erro = conferirSubmissao({
       nome: 'x',
       copy: 'a'.repeat(LIMITES.copyComMidia + 1),
-      perfil: { nome: 'Um', fotoUrl: 'a', nome2: 'Dois', fotoUrl2: 'b' },
+      perfil: { nome: 'Moveis Silva', fotoUrl: 'a', nome2: 'Silva Moveis', fotoUrl2: 'b' },
       base: { nomeArquivo: 'b.csv', conteudo: 'telefone\n5511' },
       mediaUrl: 'https://exemplo/x.jpg',
     })

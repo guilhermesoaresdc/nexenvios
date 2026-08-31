@@ -161,7 +161,7 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
     {
       nome: 'perfilNome2',
       rotulo: 'Perfil reserva — nome',
-      dica: 'Obrigatório no Monitor desde 01/09/2026. A equipe deles usa se a Meta reprovar o principal — precisa ser diferente dele.',
+      dica: 'Obrigatório no Monitor (o comunicado diz 01/09/2026, a documentação da API diz 10/09 — vale a data mais cedo). A equipe deles usa se a Meta reprovar o principal; precisa ser diferente dele.',
       exemplo: 'Silva Moveis',
     },
     {

@@ -36,6 +36,7 @@ import {
   Selecao,
   Vazio,
 } from '@/components/ui/base'
+import { conferirNomeDePerfil, TAMANHO_MAXIMO } from '@/lib/channels/nome-perfil'
 import { criarDisparo, enviarTeste, orcarDisparo } from './acoes'
 import { Previa, textoQueSai } from './previa'
 
@@ -298,6 +299,10 @@ export function Assistente({
   const perfil = peloMonitor
     ? { nome: perfilNome.trim(), fotoUrl: perfilFoto.trim(), nome2: perfilNome2.trim(), fotoUrl2: perfilFoto2.trim() }
     : null
+  // A régua da Meta, conferida enquanto a pessoa digita. Nome reprovado trava
+  // a campanha no meio do disparo, não na criação.
+  const vereditoNome = perfilNome.trim() ? conferirNomeDePerfil(perfilNome) : null
+  const vereditoNome2 = perfilNome2.trim() ? conferirNomeDePerfil(perfilNome2) : null
 
   const fontes: Fonte[] = useMemo(() => {
     if (todaABase) return [{ tipo: 'todos', chave: 'todos', rotulo: 'Toda a base' }]
@@ -395,6 +400,8 @@ export function Assistente({
       if (perfil.fotoUrl === perfil.fotoUrl2) {
         return 'A foto do perfil reserva precisa ser diferente da do principal.'
       }
+      if (vereditoNome && !vereditoNome.ok) return `Perfil principal — ${vereditoNome.motivo}`
+      if (vereditoNome2 && !vereditoNome2.ok) return `Perfil reserva — ${vereditoNome2.motivo}`
     }
     return null
   }
@@ -956,15 +963,28 @@ export function Assistente({
                   <Aviso tom="info">
                     O nome precisa ser comercial — <b>Móveis Silva</b>, <b>Padaria Aurora</b>. Frase,
                     promessa, &quot;Oficial&quot; ou termo de aposta fazem a Meta banir o número, e o
-                    Monitor recusa antes disso.
+                    Monitor recusa antes disso.{' '}
+                    <Link href="/canais/nome-de-perfil" className="font-semibold underline">
+                      Ver as regras e testar um nome
+                    </Link>
+                    .
                   </Aviso>
 
                   <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
-                    <Campo rotulo="Perfil principal — nome" obrigatorio dica="Até 25 caracteres.">
+                    <Campo
+                      rotulo="Perfil principal — nome"
+                      obrigatorio
+                      erro={vereditoNome && !vereditoNome.ok ? vereditoNome.motivo : undefined}
+                      dica={
+                        vereditoNome?.ok
+                          ? 'Passa nas regras conhecidas da Meta.'
+                          : `O nome comercial da empresa, até ${TAMANHO_MAXIMO} caracteres.`
+                      }
+                    >
                       <Entrada
                         value={perfilNome}
                         onChange={(e) => setPerfilNome(e.target.value)}
-                        maxLength={25}
+                        maxLength={TAMANHO_MAXIMO}
                         placeholder="Moveis Silva"
                       />
                     </Campo>
@@ -983,12 +1003,17 @@ export function Assistente({
                     <Campo
                       rotulo="Perfil reserva — nome"
                       obrigatorio
-                      dica="Precisa ser diferente do principal."
+                      erro={vereditoNome2 && !vereditoNome2.ok ? vereditoNome2.motivo : undefined}
+                      dica={
+                        vereditoNome2?.ok
+                          ? 'Passa nas regras conhecidas da Meta.'
+                          : 'Precisa ser diferente do principal.'
+                      }
                     >
                       <Entrada
                         value={perfilNome2}
                         onChange={(e) => setPerfilNome2(e.target.value)}
-                        maxLength={25}
+                        maxLength={TAMANHO_MAXIMO}
                         placeholder="Silva Moveis"
                       />
                     </Campo>

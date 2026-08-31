@@ -92,7 +92,33 @@ Consequências que aparecem na tela, e não escondemos:
 
 O perfil (nome e foto que quem recebe vê) viaja junto da campanha, e são **dois**
 — o principal e um reserva, que a equipe deles usa se a Meta reprovar o primeiro.
-Os dois são obrigatórios no Monitor desde 01/09/2026.
+Os dois são obrigatórios no Monitor: o comunicado deles diz 01/09/2026, a
+documentação da API diz 10/09; tratamos como obrigatórios desde já, que é o lado
+seguro de errar.
+
+### O nome do perfil tem régua da Meta
+
+Nome reprovado não barra a criação: **trava a campanha no meio do disparo**. Para
+voltar a rodar é preciso cadastrar outro perfil e esperar nova aprovação, com o
+envio parado o tempo todo. Por isso o nome é conferido em três lugares, todos
+contra a mesma função (`src/lib/channels/nome-perfil.ts`, sem `server-only` de
+propósito):
+
+- **`/canais/nome-de-perfil`** — a página de consulta: testa um nome na hora e
+  lista as oito recusas com exemplos clicáveis.
+- **No assistente**, enquanto a pessoa digita, com o motivo no próprio campo.
+- **Antes do upload**, no servidor — a tela é conforto, não proteção.
+
+As oito recusas: frase em vez de nome, promessa/prêmio/promoção (inclusive
+grudado — `TurboPix`), "bet" em qualquer posição, "Oficial"/"Verificado", chamada
+para ação, termo genérico (só quando o nome INTEIRO é genérico), marca de
+terceiro e código/número/site. Tamanho de 3 a 20 — a régua deles é mais apertada
+que os 25 da tabela da API, e vale a mais apertada.
+
+Isso **não é a palavra final**: quem decide é a Meta. Pegamos o que é
+conhecidamente reprovado, o suficiente para não descobrir com a base já enviada.
+Os testes rodam contra a própria lista de exemplos da página deles — se mudarem a
+régua, é ali que quebra.
 
 A frase de descadastro em campanha eleitoral é **deles**, não nossa: com
 `politica=true` eles acrescentam a linha que manda responder `2`, e quem escuta

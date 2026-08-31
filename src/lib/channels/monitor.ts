@@ -21,11 +21,14 @@ import 'server-only'
  * integração apontar para um servidor local — sem ela, provar o contrato de
  * cobrança exigiria bater no Monitor de verdade.
  */
+import { conferirNomeDePerfil } from './nome-perfil'
+
 const BASE = process.env.MONITOR_API_BASE ?? 'https://monitordeenvios.com/api'
 
 export const LIMITES = {
   nomeCampanha: 150,
-  perfilNome: 25,
+  /** A régua deles é de 3 a 20; a tabela da API diz 25. Vale a mais apertada. */
+  perfilNome: 20,
   copyComMidia: 750,
   copySemMidia: 1024,
   observacoes: 1000,
@@ -118,6 +121,20 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
   }
   if (perfil.nome.trim().toLowerCase() === perfil.nome2.trim().toLowerCase()) {
     return 'O perfil reserva precisa ter um nome diferente do principal.'
+  }
+
+  /*
+   * A régua da Meta, aplicada aqui e não só na tela.
+   *
+   * Um nome reprovado trava a campanha NO MEIO do disparo — não na hora de
+   * criar. Recusar antes do upload custa nada; destravar depois custa o dia.
+   */
+  for (const [rotulo, valor] of [
+    ['principal', perfil.nome],
+    ['reserva', perfil.nome2],
+  ] as const) {
+    const veredito = conferirNomeDePerfil(valor)
+    if (!veredito.ok) return `Perfil ${rotulo} — ${veredito.motivo}`
   }
   if (!perfil.fotoUrl || !perfil.fotoUrl2) {
     return 'O Monitor de Envios exige a foto dos dois perfis.'

@@ -3,7 +3,7 @@ import { exigirAdmin } from '@/lib/auth/atual'
 import { canaisDaOrg, numerosDaOrg } from '@/db/queries/canais'
 import { tokenDeRetorno } from '@/lib/canais/retorno'
 import { CANAIS, CANAL_CODIGO, CANAL_LABEL, PROVEDOR_LABEL, type Channel } from '@/db/schema/enums'
-import { Aviso, Chip, Etiqueta, Pad, PadTitulo } from '@/components/ui/base'
+import { Aviso, BotaoLink, Chip, Etiqueta, Pad, PadTitulo } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { CartaoDoCanal, Numeros } from './painel'
 
@@ -40,6 +40,11 @@ export default async function Canais() {
       <Titulo
         titulo="Canais"
         descricao="Por onde suas mensagens saem. Cada canal guarda a credencial do provedor, cifrada — ela nunca volta para esta tela."
+        acao={
+          <BotaoLink href="/canais/nome-de-perfil" tom="contorno">
+            Regras do nome de perfil
+          </BotaoLink>
+        }
       />
 
       <div className="space-y-5">
