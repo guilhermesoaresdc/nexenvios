@@ -39,6 +39,8 @@ type EstadoFalso = {
   rotasChamadas: string[]
   /** O 404 deles: código que não existe naquela conta. */
   campanhaSumida: boolean
+  /** O que `listar_campanhas.php` devolve. */
+  campanhasDeles: { codigo_acompanhamento: string; nome_campanha: string; status: string }[]
   /** O token que chegou na última consulta, e por qual caminho. */
   tokenNaUrl: string | null
   tokenNoCabecalho: string | null
@@ -56,6 +58,7 @@ const estado: EstadoFalso = {
   tokenRevogado: false,
   rotasChamadas: [],
   campanhaSumida: false,
+  campanhasDeles: [],
   tokenNaUrl: null,
   tokenNoCabecalho: null,
 }
@@ -120,7 +123,11 @@ cenario('Monitor de Envios', () => {
       }
 
       if (url.pathname.endsWith('listar_campanhas.php')) {
-        json(res, { success: true, message: 'Campanhas recuperadas.', data: [] })
+        json(res, {
+          success: true,
+          message: 'Campanhas recuperadas.',
+          data: estado.campanhasDeles,
+        })
         return
       }
 
@@ -872,6 +879,33 @@ cenario('Monitor de Envios', () => {
     const noSms = conferirSubmissao({ nome: 'x', copy: 'oi', perfil: vazio, base, canal: 'sms' })
     expect(noSms).toMatch(/dois nomes/)
     expect(noSms).toMatch(/Canais/)
+  })
+
+  it('a conferência diz se as NOSSAS campanhas estão na lista deles', async () => {
+    const { conferirCredencialDoMonitor } = await import('@/lib/campanhas/externa')
+
+    /*
+     * A pergunta que ninguém conseguia responder: guardamos o
+     * `codigo_acompanhamento` que a submissão devolveu, e o suporte deles
+     * disse que campanha nenhuma tinha chegado. Um dos dois lados estava
+     * enganado, e discutir por mensagem não resolvia. `listar_campanhas.php`
+     * é a fonte que os dois podem olhar.
+     */
+    estado.campanhasDeles = []
+    let r = await conferirCredencialDoMonitor(configId)
+    expect('erro' in r).toBe(false)
+    if ('erro' in r) return
+    expect(r.laDeles?.sumidas.length).toBeGreaterThan(0)
+    expect(r.laDeles?.sumidas).toContain('codigo-falso-123')
+
+    // Agora com a campanha aparecendo na lista deles.
+    estado.campanhasDeles = [
+      { codigo_acompanhamento: 'codigo-falso-123', nome_campanha: 'Delegada', status: 'Agendado' },
+    ]
+    r = await conferirCredencialDoMonitor(configId)
+    if ('erro' in r) return
+    expect(r.laDeles?.total).toBe(1)
+    expect(r.laDeles?.sumidas).not.toContain('codigo-falso-123')
   })
 
   it('recusa copy acima do limite com mídia', async () => {

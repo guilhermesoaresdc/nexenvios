@@ -497,6 +497,49 @@ export function impressaoDoToken(token: string): string {
   return `${visivel} (${t.length} caracteres)`
 }
 
+export type CampanhaLaDeles = {
+  codigo: string
+  nome: string
+  status: string
+  quantidade: string
+}
+
+/**
+ * O que o Monitor de Envios enxerga nesta conta.
+ *
+ * Existe por causa de uma pergunta que ninguém conseguia responder: nós
+ * guardamos um `codigo_acompanhamento` que a submissão devolveu, e o suporte
+ * deles diz que campanha nenhuma chegou. Um dos dois lados está enganado, e
+ * discutir isso por mensagem não resolve — `listar_campanhas.php` é a fonte
+ * que os dois podem olhar.
+ */
+export async function campanhasNoMonitor(
+  credencial: CredencialMonitor,
+): Promise<CampanhaLaDeles[]> {
+  const dados = (await consultar(credencial, 'listar_campanhas.php', {})) as
+    | {
+        codigo_acompanhamento?: string
+        nome_campanha?: string
+        status?: string
+        quantidade?: string
+      }[]
+    | null
+
+  if (!Array.isArray(dados)) return []
+  return dados.flatMap((c) =>
+    c.codigo_acompanhamento
+      ? [
+          {
+            codigo: c.codigo_acompanhamento,
+            nome: c.nome_campanha ?? '',
+            status: c.status ?? '',
+            quantidade: c.quantidade ?? '',
+          },
+        ]
+      : [],
+  )
+}
+
 export type TesteDeToken =
   | { aceito: true; resposta: string }
   | { aceito: false; resposta: string }

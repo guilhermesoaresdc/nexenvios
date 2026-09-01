@@ -349,6 +349,23 @@ export async function conferirCredencial(_anterior: Estado, form: FormData): Pro
     partes.push(`Não deu para testar o envio de campanha: ${r.erroDoUpload}.`)
   }
 
+  /*
+   * O que eles enxergam, dito por eles.
+   *
+   * É a linha que encerra a discussão de "mandamos" contra "não chegou": o
+   * código que guardamos ou está na lista deles, ou não está.
+   */
+  if (r.laDeles) {
+    partes.push(
+      `O Monitor lista ${r.laDeles.total} campanha(s) nesta conta` +
+        (r.laDeles.sumidas.length > 0
+          ? `, e NÃO encontra ${r.laDeles.sumidas.length} das nossas: ${r.laDeles.sumidas.slice(0, 3).join(', ')}.`
+          : r.laDeles.nossas > 0
+            ? `, incluindo as ${r.laDeles.nossas} que enviamos.`
+            : '.'),
+    )
+  }
+
   if (r.saldo !== null) {
     partes.push(`Saldo no Monitor: ${r.saldo.toLocaleString('pt-BR')} envio(s).`)
   } else {

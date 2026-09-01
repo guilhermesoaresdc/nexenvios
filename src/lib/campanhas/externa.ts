@@ -573,6 +573,8 @@ async function guardarRespostas(
 }
 
 export type ConferenciaDaCredencial = {
+  /** O que o Monitor enxerga nesta conta, e se as NOSSAS campanhas estão lá. */
+  laDeles: { total: number; nossas: number; sumidas: string[] } | null
   /** A impressão do token guardado: 4 primeiros, 4 últimos e o tamanho. */
   impressao: string
   /** Saldo, quando a consulta por cabeçalho passou. */
@@ -609,9 +611,8 @@ export async function conferirCredencialDoMonitor(
     return { erro: 'Este canal está sem o token de acesso do Monitor de Envios.' }
   }
 
-  const { conferirTokenNoUpload, impressaoDoToken, saldoNoMonitor } = await import(
-    '@/lib/channels/monitor'
-  )
+  const { campanhasNoMonitor, conferirTokenNoUpload, impressaoDoToken, saldoNoMonitor } =
+    await import('@/lib/channels/monitor')
 
   /*
    * Os DOIS caminhos, porque eles não são o mesmo.
@@ -633,7 +634,36 @@ export async function conferirCredencialDoMonitor(
     ),
   ])
 
+  /*
+   * Confere se as NOSSAS campanhas estão lá.
+   *
+   * Guardamos o `codigo_acompanhamento` que a submissão devolveu, e o suporte
+   * deles disse que campanha nenhuma tinha chegado. Um dos dois lados estava
+   * enganado, e não havia como saber qual sem olhar a mesma lista. Agora dá:
+   * `listar_campanhas.php` é a fonte que os dois podem consultar.
+   */
+  let laDeles: ConferenciaDaCredencial['laDeles'] = null
+  try {
+    const deles = await campanhasNoMonitor(credencial)
+    const codigos = new Set(deles.map((c) => c.codigo))
+    const nossas = await db
+      .select({ codigo: campaigns.externalCode })
+      .from(campaigns)
+      .where(and(eq(campaigns.configId, configId), isNotNull(campaigns.externalCode)))
+      .orderBy(raw`${campaigns.createdAt} DESC`)
+      .limit(20)
+
+    const sumidas = nossas
+      .map((c) => c.codigo)
+      .filter((c): c is string => Boolean(c) && !codigos.has(c!))
+
+    laDeles = { total: deles.length, nossas: nossas.length - sumidas.length, sumidas }
+  } catch {
+    // A listagem é diagnóstico: se ela falhar, o resto da conferência continua.
+  }
+
   return {
+    laDeles,
     impressao: impressaoDoToken(credencial.apiToken),
     saldo: saldo.ok ? saldo.valor : null,
     erroDoSaldo: saldo.ok ? null : saldo.erro,
