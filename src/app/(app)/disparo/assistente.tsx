@@ -944,7 +944,11 @@ export function Assistente({
 
               <Campo
                 rotulo="Mídia (opcional)"
-                dica="Imagem, PDF ou áudio, até 5 MB. Envie do computador ou cole um link público — o provedor precisa conseguir baixar sozinho."
+                dica={
+                  peloMonitor
+                    ? 'Imagem (até 5 MB) ou vídeo MP4/MOV (até 16 MB). O Monitor de Envios não aceita PDF nem áudio.'
+                    : 'Imagem, vídeo, PDF ou áudio. Envie do computador ou cole um link público — o provedor precisa conseguir baixar sozinho.'
+                }
               >
                 <CampoDeImagem
                   name="mediaUrl"

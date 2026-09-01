@@ -15,11 +15,18 @@ import { dimensoesDaImagem } from './dimensoes'
  * disparo, e destravar exige cadastrar outra e esperar nova aprovação deles.
  */
 
-/** O teto por arquivo. É o mesmo do Monitor de Envios. */
+/**
+ * Os tetos, como o Monitor de Envios os define.
+ *
+ * Imagem e foto de perfil vão a 5 MB; vídeo vai a 16 MB. Um teto único de 5 MB
+ * recusava um MP4 de 10 MB que eles aceitam sem reclamar.
+ */
 export const TETO_BYTES = 5 * 1024 * 1024
+export const TETO_VIDEO_BYTES = 16 * 1024 * 1024
 
-/** O lado mínimo de uma foto de perfil, pela régua deles. */
+/** Os lados de uma foto de perfil, pela régua deles: 192 a 4096, quadrada. */
 export const LADO_MINIMO = 192
+export const LADO_MAXIMO = 4096
 
 /**
  * Quanto o retrato pode fugir do quadrado.
@@ -30,20 +37,37 @@ export const LADO_MINIMO = 192
  */
 const TOLERANCIA_QUADRADO = 0.02
 
+/**
+ * As imagens que o Monitor aceita: jpg, jpeg, png, webp.
+ *
+ * GIF ficou de fora de propósito — estava na lista e não está na deles. Uma
+ * foto de perfil em GIF passava aqui e tomava 400 depois do upload, que é o
+ * pior lugar para descobrir.
+ */
 export const IMAGENS: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
-  'image/gif': 'gif',
 }
 
-/** O que a mídia de campanha aceita além de imagem. */
+/** Vídeo da campanha. Teto próprio de 16 MB. */
+const VIDEOS: Record<string, string> = {
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+}
+
+/**
+ * O que só vale fora do Monitor.
+ *
+ * `midia_campanha` deles aceita imagem e vídeo — PDF e áudio não estão na
+ * lista. Continuam aqui porque o provedor HTTP genérico manda esses tipos sem
+ * problema; quem barra é a conferência por canal, na hora de submeter.
+ */
 const OUTROS: Record<string, string> = {
   'application/pdf': 'pdf',
   'audio/mpeg': 'mp3',
   'audio/ogg': 'ogg',
   'audio/mp4': 'm4a',
-  'video/mp4': 'mp4',
 }
 
 export type Uso = 'perfil' | 'midia'
@@ -53,7 +77,7 @@ export type Guardado =
   | { ok: false; erro: string }
 
 function extensao(mime: string): string {
-  return IMAGENS[mime] ?? OUTROS[mime] ?? 'bin'
+  return IMAGENS[mime] ?? VIDEOS[mime] ?? OUTROS[mime] ?? 'bin'
 }
 
 export async function guardarArquivo(opcoes: {
@@ -67,20 +91,26 @@ export async function guardarArquivo(opcoes: {
   const { arquivo, uso } = opcoes
 
   if (!arquivo || arquivo.size === 0) return { ok: false, erro: 'Escolha um arquivo.' }
-  if (arquivo.size > TETO_BYTES) {
-    const mb = (arquivo.size / 1024 / 1024).toFixed(1).replace('.', ',')
-    return { ok: false, erro: `O arquivo tem ${mb} MB e o limite é 5 MB.` }
-  }
 
   const mime = (arquivo.type || '').toLowerCase()
-  const aceitos = uso === 'perfil' ? IMAGENS : { ...IMAGENS, ...OUTROS }
+  const aceitos = uso === 'perfil' ? IMAGENS : { ...IMAGENS, ...VIDEOS, ...OUTROS }
   if (!aceitos[mime]) {
     return {
       ok: false,
       erro:
         uso === 'perfil'
           ? 'A foto precisa ser PNG, JPG ou WebP.'
-          : 'Formato não aceito. Vale imagem, PDF, áudio ou MP4.',
+          : 'Formato não aceito. Vale imagem (PNG, JPG, WebP), vídeo (MP4, MOV), PDF ou áudio.',
+    }
+  }
+
+  // O vídeo tem teto próprio, maior. Ver TETO_VIDEO_BYTES.
+  const teto = VIDEOS[mime] ? TETO_VIDEO_BYTES : TETO_BYTES
+  if (arquivo.size > teto) {
+    const mb = (arquivo.size / 1024 / 1024).toFixed(1).replace('.', ',')
+    return {
+      ok: false,
+      erro: `O arquivo tem ${mb} MB e o limite é ${teto / 1024 / 1024} MB.`,
     }
   }
 
@@ -103,6 +133,12 @@ export async function guardarArquivo(opcoes: {
         return {
           ok: false,
           erro: `A foto tem ${largura}×${altura}. O Monitor de Envios exige no mínimo ${LADO_MINIMO}×${LADO_MINIMO}.`,
+        }
+      }
+      if (largura > LADO_MAXIMO || altura > LADO_MAXIMO) {
+        return {
+          ok: false,
+          erro: `A foto tem ${largura}×${altura}. O máximo é ${LADO_MAXIMO}×${LADO_MAXIMO} — reduza antes de subir.`,
         }
       }
       const desvio = Math.abs(largura - altura) / Math.max(largura, altura)

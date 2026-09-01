@@ -35,8 +35,8 @@ type EstadoFalso = {
   baseRecebida: string
   /** Liga o 401 do lado deles: token revogado, conta suspensa, IP fora da lista. */
   tokenRevogado: boolean
-  /** A recusa por campo obrigatório, que significa "o token passou". */
-  recusaPorCampo: string | null
+  /** As rotas que o cliente bateu, para provar o que ele NÃO chamou. */
+  rotasChamadas: string[]
 }
 
 const estado: EstadoFalso = {
@@ -49,7 +49,7 @@ const estado: EstadoFalso = {
   recebeuUpload: null,
   baseRecebida: '',
   tokenRevogado: false,
-  recusaPorCampo: null,
+  rotasChamadas: [],
 }
 
 let servidor: Server | undefined
@@ -65,6 +65,7 @@ cenario('Monitor de Envios', () => {
   beforeAll(async () => {
     servidor = createServer((req, res) => {
       const url = new URL(req.url ?? '/', BASE_FALSA)
+      estado.rotasChamadas.push(url.pathname)
 
       if (estado.tokenRevogado && url.pathname.endsWith('.php')) {
         res.writeHead(401, { 'content-type': 'application/json' })
@@ -85,11 +86,6 @@ cenario('Monitor de Envios', () => {
             const valor = parte.split('\r\n\r\n').slice(1).join('\r\n\r\n').trimEnd()
             campos[nome] = valor
           }
-          if (estado.recusaPorCampo) {
-            res.writeHead(200, { 'content-type': 'application/json' })
-            res.end(JSON.stringify({ success: false, message: estado.recusaPorCampo }))
-            return
-          }
           estado.recebeuUpload = campos
           estado.baseRecebida = campos.base_dados ?? ''
           json(res, {
@@ -99,6 +95,11 @@ cenario('Monitor de Envios', () => {
             codigo_acompanhamento: 'codigo-falso-123',
           })
         })
+        return
+      }
+
+      if (url.pathname.endsWith('listar_campanhas.php')) {
+        json(res, { success: true, message: 'Campanhas recuperadas.', data: [] })
         return
       }
 
@@ -620,15 +621,40 @@ cenario('Monitor de Envios', () => {
     expect(r.resposta).toMatch(/[Tt]oken/)
   })
 
-  it('reclamação de campo obrigatório é BOA notícia: passou da autenticação', async () => {
+  it('a conferência do token NÃO gasta cota de erro deles', async () => {
     const { conferirTokenNoUpload } = await import('@/lib/channels/monitor')
 
-    estado.recusaPorCampo = "Campo 'perfil_nome' é obrigatório."
+    /*
+     * A política deles bloqueia o IP por 15 minutos depois de 5 respostas 4xx
+     * em 5 minutos (§6.1). A primeira versão desta conferência provocava um
+     * 400 de propósito — cinco cliques em "Conferir credencial" derrubariam
+     * junto o polling de todas as campanhas vivas.
+     */
+    estado.rotasChamadas = []
     const r = await conferirTokenNoUpload({ apiToken: 'token-de-teste' })
-    estado.recusaPorCampo = null
 
     expect(r.aceito).toBe(true)
-    expect(r.resposta).toMatch(/perfil_nome/)
+    expect(estado.rotasChamadas).toContain('/listar_campanhas.php')
+    expect(estado.rotasChamadas.some((rota) => rota.includes('receber_campanha'))).toBe(false)
+  })
+
+  it('recusa mídia que o Monitor não aceita, antes de gastar o upload', async () => {
+    const { conferirSubmissao } = await import('@/lib/channels/monitor')
+    const comum = {
+      nome: 'x',
+      copy: 'oi',
+      perfil: { nome: 'Moveis Silva', fotoUrl: 'a.png', nome2: 'Silva Moveis', fotoUrl2: 'b.png' },
+      base: { nomeArquivo: 'b.csv', conteudo: 'telefone\n5511' },
+    }
+
+    // PDF e áudio não estão em `midia_campanha`: voltariam 400 DEPOIS do upload.
+    expect(conferirSubmissao({ ...comum, mediaUrl: 'https://x/arte.pdf' })).toMatch(/\.pdf/)
+    expect(conferirSubmissao({ ...comum, mediaUrl: 'https://x/audio.mp3' })).toMatch(/\.mp3/)
+
+    // Imagem e vídeo passam.
+    expect(conferirSubmissao({ ...comum, mediaUrl: 'https://x/arte.jpg' })).toBeNull()
+    expect(conferirSubmissao({ ...comum, mediaUrl: 'https://x/video.mp4' })).toBeNull()
+    expect(conferirSubmissao({ ...comum, mediaUrl: 'https://x/video.mov' })).toBeNull()
   })
 
   it('recusa copy acima do limite com mídia', async () => {

@@ -155,6 +155,22 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
       : `A mensagem passa de ${teto} caracteres para este formato.`
   }
 
+  /*
+   * A mídia deles aceita IMAGEM e VÍDEO — não PDF nem áudio.
+   *
+   * A tela de disparo serve a todos os canais, e no provedor HTTP genérico um
+   * PDF é mídia legítima. Aqui não: `midia_campanha` lista jpg/jpeg/png/webp e
+   * mp4/mov, e qualquer outra coisa volta 400 DEPOIS do upload — com a base de
+   * 25 MB já subida e uma das 60 submissões da hora gasta.
+   */
+  if (dados.mediaUrl) {
+    const ext = /\.([a-z0-9]+)(?:[?#].*)?$/i.exec(dados.mediaUrl)?.[1]?.toLowerCase() ?? ''
+    const aceitas = ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov']
+    if (ext && !aceitas.includes(ext)) {
+      return `O Monitor de Envios só aceita imagem (JPG, PNG, WebP) ou vídeo (MP4, MOV) como mídia — este arquivo é .${ext}.`
+    }
+  }
+
   if (!dados.base.conteudo.trim()) return 'A base está vazia.'
   return null
 }
@@ -180,11 +196,20 @@ function nomeDoArquivo(url: string, padrao: string): string {
   }
 }
 
-/** DD/MM/YYYY, como eles aceitam. */
+/**
+ * DD/MM/YYYY no fuso de Brasília, que é o calendário deles.
+ *
+ * Em UTC, um disparo marcado para as 21h de 01/09 vira 02/09 — e a campanha
+ * chegaria lá datada do dia seguinte, sem ninguém notar até ela não sair no
+ * dia combinado. O corte do dia tem que ser o mesmo que a pessoa viu na tela.
+ */
 function dataBr(quando: Date): string {
-  const d = String(quando.getUTCDate()).padStart(2, '0')
-  const m = String(quando.getUTCMonth() + 1).padStart(2, '0')
-  return `${d}/${m}/${quando.getUTCFullYear()}`
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(quando)
 }
 
 export async function submeterCampanha(
@@ -418,41 +443,32 @@ export type TesteDeToken =
   | { aceito: false; resposta: string }
 
 /**
- * Testa o token NO ENDPOINT QUE IMPORTA.
+ * Testa o token sem provocar erro do lado deles.
  *
- * A consulta de saldo manda o token no cabeçalho `X-API-Token`; a submissão da
- * campanha manda como campo `api_token` de um POST multipart. São caminhos
- * diferentes, e conferir só o primeiro deixava passar exatamente o caso que
- * quebrou em produção: saldo respondendo bem e a campanha morrendo com "Token
- * inválido".
+ * A primeira versão disto mandava um POST vazio para
+ * `receber_campanha_externa.php` e lia a recusa por campo obrigatório como
+ * "token bom". Funcionava — e era uma armadilha: a política deles (§6.1)
+ * bloqueia o IP por 15 MINUTOS depois de 5 respostas 4xx em 5 minutos, e um
+ * POST sem `perfil_nome` é justamente um 400. Cinco cliques em "Conferir
+ * credencial" derrubariam junto o polling de todas as campanhas vivas — pior
+ * do que o problema que aquilo resolvia.
  *
- * O POST vai sem nenhum outro campo, de propósito. Sem `perfil_nome` e sem
- * base, eles recusam por campo obrigatório ANTES de criar qualquer coisa — o
- * que separa "o token não presta" de "o token presta e o problema é outro"
- * sem consumir envio nem upload. É o mesmo teste que o suporte deles indica.
+ * `listar_campanhas.php` responde 200 com token bom e 401 com token ruim, e
+ * recebe o token pelo MESMO parâmetro `api_token` que a submissão usa. Segundo
+ * a seção 1 da documentação deles, parâmetro, cabeçalho e campo POST
+ * autenticam igual em qualquer endpoint — então esta consulta prova o que a
+ * submissão precisa provar, sem gastar cota de erro.
  */
 export async function conferirTokenNoUpload(
   credencial: CredencialMonitor,
 ): Promise<TesteDeToken> {
-  const form = new FormData()
-  form.set('api_token', credencial.apiToken)
+  const url = new URL(`${BASE}/listar_campanhas.php`)
+  url.searchParams.set('api_token', credencial.apiToken)
 
-  const resposta = await fetch(`${BASE}/receber_campanha_externa.php`, {
-    method: 'POST',
-    body: form,
-    signal: AbortSignal.timeout(20_000),
-  })
-
+  const resposta = await fetch(url, { signal: AbortSignal.timeout(20_000) })
   const corpo = (await lerJson(resposta)) as { success?: boolean; message?: string } | null
   const mensagem = corpo?.message ?? `HTTP ${resposta.status}`
 
-  /*
-   * Recusa por token é a única que interessa aqui.
-   *
-   * Qualquer outra reclamação — campo obrigatório faltando, principalmente —
-   * é BOA notícia: significa que eles passaram da autenticação e chegaram a
-   * validar o formulário.
-   */
-  const recusouToken = /token|autoriza|autentic|credencial/i.test(mensagem)
-  return { aceito: !recusouToken, resposta: mensagem }
+  if (resposta.ok && corpo?.success) return { aceito: true, resposta: mensagem }
+  return { aceito: false, resposta: mensagem }
 }
