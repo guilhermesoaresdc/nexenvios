@@ -84,6 +84,16 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
   const saidos = campanha.enviados + entregues
   const base = Math.max(campanha.total, saidos + campanha.falhas + campanha.pendentes, 1)
 
+  /*
+   * Campanha entregue por fora.
+   *
+   * O que muda na tela não é enfeite: os números daqui vêm de um progresso
+   * AGREGADO, e várias frases desta página afirmam coisas que só valem quando
+   * cada mensagem tem linha própria. Onde não sabemos, esta página passa a não
+   * afirmar.
+   */
+  const delegada = Boolean(campanha.externalCode)
+
   const preparando = campanha.status === 'preparando'
   const temReal = Number(campanha.custoReal) > 0
   const semJanela = campanha.janelaInicio === campanha.janelaFim
@@ -143,6 +153,21 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
             levam alguns minutos para virar fila — esta tela se atualiza sozinha, pode deixar aberta.
           </Aviso>
         </>
+      ) : null}
+
+      {/*
+        Campanha que o Monitor recusou na própria submissão não tem código —
+        ela nunca chegou a existir do lado deles. O motivo fica em
+        `externalReason`, e sem este primeiro caso a tela mostrava só "Falhou",
+        escondendo justamente a explicação que a pessoa precisa para corrigir.
+      */}
+      {!campanha.externalCode && campanha.externalReason ? (
+        <Aviso tom="erro" titulo="O Monitor de Envios não aceitou este disparo" className="mb-5">
+          {campanha.externalReason}
+          <span className="mt-2 block">
+            Nada foi cobrado. Ajuste o que foi apontado e crie o disparo de novo.
+          </span>
+        </Aviso>
       ) : null}
 
       {campanha.externalCode ? (
@@ -223,24 +248,42 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
           rotulo="Respostas"
           valor={numero(campanha.respostas)}
           tom={campanha.respostas > 0 ? 'verde' : 'navy'}
-          nota={saidos > 0 ? `${porcento(campanha.respostas, saidos)} de quem recebeu` : '—'}
+          nota={
+            delegada
+              ? 'Trazidas do Monitor a cada conferência'
+              : saidos > 0
+                ? `${porcento(campanha.respostas, saidos)} de quem recebeu`
+                : '—'
+          }
         />
         <Numero
           rotulo="Falhas"
           valor={numero(campanha.falhas)}
           tom={campanha.falhas > 0 ? 'vermelho' : 'navy'}
-          nota={campanha.falhas > 0 ? 'Veja os motivos abaixo' : 'Nenhuma falha até agora'}
+          nota={
+            campanha.falhas > 0
+              ? 'Veja os motivos abaixo'
+              : delegada
+                ? 'O Monitor não informa falha por mensagem'
+                : 'Nenhuma falha até agora'
+          }
         />
       </div>
 
       <Pad className="mt-5">
         <PadTitulo
           titulo="Andamento"
-          descricao={`${numero(campanha.pendentes)} ${campanha.pendentes === 1 ? 'envio ainda na fila' : 'envios ainda na fila'}.`}
+          descricao={
+            delegada
+              ? `${numero(campanha.pendentes)} ainda não processados pelo Monitor de Envios. Aqui não há envio linha a linha para abrir.`
+              : `${numero(campanha.pendentes)} ${campanha.pendentes === 1 ? 'envio ainda na fila' : 'envios ainda na fila'}.`
+          }
           acao={
-            <BotaoLink href={`/historico?campanha=${campanha.id}`} tom="contorno" tamanho="sm">
-              Ver os envios desta campanha
-            </BotaoLink>
+            delegada ? null : (
+              <BotaoLink href={`/historico?campanha=${campanha.id}`} tom="contorno" tamanho="sm">
+                Ver os envios desta campanha
+              </BotaoLink>
+            )
           }
         />
         <div className="px-6 py-5">
@@ -266,7 +309,11 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
         <Pad>
           <PadTitulo
             titulo="A mensagem que saiu"
-            descricao="Este é o texto do disparo. As variáveis são trocadas por destinatário na hora de montar a fila."
+            descricao={
+              delegada
+                ? 'Este é o texto submetido ao Monitor de Envios. Em campanha política, eles acrescentam no fim a frase de descadastro exigida por lei — ela não aparece aqui.'
+                : 'Este é o texto do disparo. As variáveis são trocadas por destinatário na hora de montar a fila.'
+            }
           />
           <div className="px-6 py-5">
             <pre className="rounded-[12px] border border-line bg-paper px-4 py-3.5 font-sans text-[.9rem] leading-relaxed whitespace-pre-wrap text-ink">
@@ -290,17 +337,38 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
         </Pad>
 
         <Pad>
-          <PadTitulo titulo="Ritmo e janela" descricao="Como esta campanha ocupa o dia." />
+          <PadTitulo
+            titulo="Ritmo e janela"
+            descricao={
+              delegada
+                ? 'Quem controla o ritmo desta campanha é o Monitor de Envios.'
+                : 'Como esta campanha ocupa o dia.'
+            }
+          />
           <dl className="divide-y divide-line">
+            {/*
+              Os valores de ritmo, jitter e janela ficam gravados na campanha
+              delegada porque a coluna existe para todas — mas eles não foram
+              usados: o Monitor entrega no ritmo dele. Mostrá-los seria dizer
+              que a campanha respeitou uma regra que ninguém aplicou.
+            */}
             <Linha rotulo="Ritmo">
-              {numero(campanha.ritmo)} por minuto
-              <span className="block text-[.78rem] text-muted">
-                com variação de até {numero(Math.round(campanha.jitter / 1000))} s entre uma
-                mensagem e outra, para não parecer robô
-              </span>
+              {delegada ? (
+                'Definido pelo Monitor de Envios'
+              ) : (
+                <>
+                  {numero(campanha.ritmo)} por minuto
+                  <span className="block text-[.78rem] text-muted">
+                    com variação de até {numero(Math.round(campanha.jitter / 1000))} s entre uma
+                    mensagem e outra, para não parecer robô
+                  </span>
+                </>
+              )}
             </Linha>
             <Linha rotulo="Janela de silêncio">
-              {semJanela ? (
+              {delegada ? (
+                'Definida pelo Monitor de Envios'
+              ) : semJanela ? (
                 'Sem janela — envia a qualquer hora'
               ) : (
                 <>
@@ -312,7 +380,9 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
               )}
             </Linha>
             <Linha rotulo="Término previsto">
-              {fimPrevisto ? (
+              {delegada ? (
+                'Sem previsão nossa — o ritmo é do Monitor'
+              ) : fimPrevisto ? (
                 <>
                   {quando(fimPrevisto)}
                   <span className="block text-[.78rem] text-muted">{dataHora(fimPrevisto)}</span>

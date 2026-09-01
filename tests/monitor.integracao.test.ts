@@ -304,6 +304,45 @@ cenario('Monitor de Envios', () => {
     expect(somado).toBeCloseTo(-0.5, 4)
   })
 
+  it('enviados e entregues não se somam duas vezes na tela', async () => {
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    /*
+     * As duas contas têm semânticas que precisam casar:
+     *
+     *   deles:  quantidadeEnviada (sem confirmação) + quantidadeRecebida
+     *   nossa:  campaigns.sent    (sem confirmação) + campaigns.delivered
+     *
+     * A tela faz `saidos = sent + delivered`. Se `sent` guardasse o total
+     * processado, "Enviados" contaria os confirmados duas vezes e passaria do
+     * total da campanha. Já a COBRANÇA usa a soma — por isso ela vive em
+     * `externalBilled`, e não é derivada do que a tela mostra.
+     */
+    estado.enviadas = 3
+    estado.recebidas = 2
+
+    await db
+      .update(esquema.campaigns)
+      .set({ externalSyncedAt: null })
+      .where(eq(esquema.campaigns.id, campanhaId))
+    await sincronizarExternas()
+
+    const [c] = await db
+      .select()
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, campanhaId))
+
+    expect(c!.sent).toBe(3)
+    expect(c!.delivered).toBe(2)
+    // O que a tela soma não pode passar do total da campanha (8 contatos).
+    expect(c!.sent + c!.delivered).toBe(5)
+    expect(c!.sent + c!.delivered).toBeLessThanOrEqual(c!.total)
+    // E a cobrança acompanha a soma, não só o "sem confirmação".
+    expect(c!.externalBilled).toBe(5)
+  })
+
   it('uma consulta sem progresso novo não cobra de novo', async () => {
     const { sincronizarExternas } = await import('@/lib/campanhas/externa')
     const { db } = await import('@/db')

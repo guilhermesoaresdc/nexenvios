@@ -138,13 +138,28 @@ export type Resposta = {
   recebidaEm: Date
 }
 
+/**
+ * As respostas recebidas.
+ *
+ * A campanha vem pela linha de envio OU pelo que o polling guardou: a resposta
+ * trazida do Monitor de Envios não tem `dispatch_id`, porque a campanha
+ * delegada não cria linha nenhuma. `sincronizarExternas` grava o id da campanha
+ * em `raw.campanha`, e é o COALESCE que salva a coluna de ficar vazia para
+ * sempre nesse canal. O teste do formato evita que um `raw` de outro provedor
+ * derrube a consulta no cast para uuid.
+ */
 export async function listarRespostas(orgId: string, limite = 50): Promise<Resposta[]> {
   return sql<Resposta[]>`
     SELECT i.id, i.channel AS canal, i.from_address AS de, i.body AS texto,
            c.name AS campanha, i.received_at AS "recebidaEm"
       FROM inbound_messages i
       LEFT JOIN dispatches d ON d.id = i.dispatch_id
-      LEFT JOIN campaigns c ON c.id = d.campaign_id
+      LEFT JOIN campaigns c
+             ON c.id = COALESCE(
+                  d.campaign_id,
+                  CASE WHEN i.raw ->> 'campanha' ~ '^[0-9a-f-]{36}$'
+                       THEN (i.raw ->> 'campanha')::uuid END
+                )
      WHERE i.org_id = ${orgId}
      ORDER BY i.received_at DESC
      LIMIT ${limite}

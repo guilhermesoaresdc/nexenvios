@@ -220,6 +220,7 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
     .select({
       id: campaigns.id,
       orgId: campaigns.orgId,
+      canal: campaigns.channel,
       codigo: campaigns.externalCode,
       status: campaigns.status,
       externalStatus: campaigns.externalStatus,
@@ -286,6 +287,8 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
 type CampanhaExterna = {
   id: string
   orgId: string
+  /** O canal da campanha — a resposta entra registrada no mesmo canal. */
+  canal: string
   codigo: string | null
   status: string
   externalStatus: string | null
@@ -373,10 +376,19 @@ async function sincronizarUma(
       externalStatus: 'aprovado',
       externalSyncedAt: new Date(),
       externalBilled: processadas,
-      // `sent` é tudo que saiu — o que ainda não foi confirmado MAIS o que já
-      // foi. Somar só `enviadas` faria "enviados" cair quando a entrega fosse
-      // confirmada, que é o oposto do que a palavra quer dizer.
-      sent: processadas,
+      /*
+       * `sent` e `delivered` mapeiam UM PARA UM nos campos deles.
+       *
+       * A tela calcula `saidos = enviados + entregues`, ou seja, `sent` aqui
+       * significa "saiu e ainda não foi confirmado" — exatamente o que
+       * `quantidadeEnviada` quer dizer. Gravar o total processado em `sent`
+       * faria a soma contar os confirmados duas vezes e "Enviados" passar do
+       * total da campanha.
+       *
+       * A cobrança é que usa a soma, e é por isso que ela mora em
+       * `externalBilled` e não é derivada da tela.
+       */
+      sent: progresso.enviadas,
       delivered: progresso.recebidas,
       pending: Math.max(0, teto - processadas),
       startedAt: raw`COALESCE(${campaigns.startedAt}, now())`,
@@ -404,6 +416,8 @@ async function guardarRespostas(
   const respostas = await respostasDaCampanha(credencial, codigo)
   if (respostas.length === 0) return
 
+  let novas = 0
+
   for (const resposta of respostas) {
     const telefone = resposta.telefone.replace(/\D/g, '')
     if (!telefone) continue
@@ -424,9 +438,9 @@ async function guardarRespostas(
 
     // Sem chave única do lado deles, o par telefone + instante é o que
     // impede a mesma resposta de entrar a cada sincronização.
-    await sql`
+    const inseridas = await sql`
       INSERT INTO inbound_messages (org_id, channel, from_address, body, contact_id, raw, received_at)
-      SELECT ${campanha.orgId}::uuid, 'whatsapp_oficial'::channel, ${numero}, ${resposta.texto},
+      SELECT ${campanha.orgId}::uuid, ${campanha.canal}::channel, ${numero}, ${resposta.texto},
              (SELECT id FROM contacts WHERE org_id = ${campanha.orgId}::uuid AND phone = ${numero} LIMIT 1),
              ${JSON.stringify({ campanha: campanha.id, codigo })}::jsonb, ${resposta.quando}
        WHERE NOT EXISTS (
@@ -435,7 +449,25 @@ async function guardarRespostas(
             AND from_address = ${numero}
             AND received_at = ${resposta.quando}
        )
+      RETURNING id
     `
+    novas += inseridas.length
+  }
+
+  /*
+   * O contador da campanha sobe junto.
+   *
+   * Sem isto o detalhe mostrava "Respostas 0" enquanto a tela de Respostas
+   * listava as mesmas mensagens — duas telas do mesmo produto discordando
+   * sobre um número que o cliente usa para medir a campanha. O RETURNING é
+   * quem conta: o INSERT é idempotente pelo NOT EXISTS, então a segunda
+   * conferência não soma de novo.
+   */
+  if (novas > 0) {
+    await db
+      .update(campaigns)
+      .set({ replied: raw`${campaigns.replied} + ${novas}` })
+      .where(eq(campaigns.id, campanha.id))
   }
 }
 
