@@ -382,6 +382,21 @@ export function Assistente({
   const perfil = exigePerfil
     ? { nome: perfilNome.trim(), fotoUrl: perfilFoto.trim(), nome2: perfilNome2.trim(), fotoUrl2: perfilFoto2.trim() }
     : null
+
+  /*
+   * No SMS o perfil vem do canal — mas precisa existir.
+   *
+   * A API deles exige `perfil_nome` em qualquer canal (respondeu isso para uma
+   * campanha de SMS nossa). O que muda é que ali ninguém vê nome nem foto, e
+   * pedir isso a cada disparo é trabalho sem retorno. Então o valor sai do
+   * cadastro do canal — e, se lá estiver vazio, é melhor dizer agora do que
+   * deixar a recusa vir do outro lado depois da base subir.
+   */
+  const padraoDoCanal = canalEscolhido?.perfilPadrao ?? null
+  const faltaPerfilNoCanal =
+    peloMonitor &&
+    canalEscolhido?.canal === 'sms' &&
+    !(padraoDoCanal?.nome && padraoDoCanal.fotoUrl && padraoDoCanal.nome2 && padraoDoCanal.fotoUrl2)
   // A régua da Meta, conferida enquanto a pessoa digita. Nome reprovado trava
   // a campanha no meio do disparo, não na criação.
   const vereditoNome = perfilNome.trim() ? conferirNomeDePerfil(perfilNome) : null
@@ -522,6 +537,9 @@ export function Assistente({
       return `Faltam ${moeda(faltaEmCreditos)} em créditos para este disparo. Peça uma recarga ou reduza o público.`
     }
     if (quando === 'agendar' && !agendarEm) return 'Escolha a data e a hora do agendamento.'
+    if (faltaPerfilNoCanal) {
+      return 'Este canal de SMS está sem o perfil que o Monitor de Envios exige. Cadastre nome e foto (principal e reserva) em Canais — é uma vez só, e ninguém vê isso num SMS.'
+    }
     if (exigePerfil && perfil) {
       if (!perfil.nome || !perfil.fotoUrl) return 'Preencha o perfil principal — nome e foto.'
       if (!perfil.nome2 || !perfil.fotoUrl2) return 'Preencha o perfil reserva — nome e foto.'
@@ -1049,6 +1067,18 @@ export function Assistente({
                     maxLength={160}
                   />
                 </Campo>
+
+                {faltaPerfilNoCanal ? (
+                  <Aviso tom="erro" titulo="Falta o perfil no cadastro deste canal">
+                    O Monitor de Envios exige nome e foto de perfil em toda campanha — inclusive no
+                    SMS, onde ninguém os vê. Preencha os quatro campos no canal e não precisa
+                    repetir a cada disparo.{' '}
+                    <Link href="/canais" className="font-semibold underline">
+                      Abrir Canais
+                    </Link>
+                    .
+                  </Aviso>
+                ) : null}
 
                 {peloMonitor ? (
                   <Aviso tom="info" titulo="O ritmo aqui é da plataforma deles">

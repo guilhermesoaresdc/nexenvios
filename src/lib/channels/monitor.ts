@@ -56,12 +56,11 @@ export type SubmissaoDaCampanha = {
   nome: string
   copy: string
   /**
-   * O canal da campanha. Só o WhatsApp tem perfil.
+   * O canal da campanha. Muda apenas ONDE o perfil é cobrado.
    *
-   * Nome e foto são o que o destinatário vê no aparelho; num SMS ele vê o
-   * remetente da operadora e mais nada. A documentação deles marca
-   * `perfil_nome` e `foto_perfil` como obrigatórios, mas descreve só campanha
-   * de WhatsApp — e exigir o que não aparece é pedir trabalho à toa.
+   * A API exige perfil em qualquer canal — no SMS também, confirmado por ela.
+   * Mas ali ninguém vê nome nem foto, então o valor vem do canal e o erro
+   * aponta para Canais em vez de para um cartão que a tela não mostra.
    */
   canal?: string
   perfil: Perfil
@@ -121,9 +120,25 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
   if (nome.length > LIMITES.nomeCampanha) {
     return `O nome do disparo passa de ${LIMITES.nomeCampanha} caracteres.`
   }
-  const semPerfil = dados.canal === 'sms'
-  if (!semPerfil && (!perfil.nome.trim() || !perfil.nome2.trim())) {
-    return 'O Monitor de Envios exige dois nomes de perfil: o principal e o reserva.'
+  /*
+   * O perfil é exigido em TODA campanha, inclusive SMS.
+   *
+   * A documentação deles não tem seção de SMS, e a hipótese de que ali o
+   * perfil não valesse era razoável — mas a API respondeu "Campo 'perfil_nome'
+   * é obrigatório." também no SMS. Fica registrado.
+   *
+   * A diferença que sobra é onde ele é preenchido: no SMS ninguém vê nome nem
+   * foto, então pedir isso a cada disparo é trabalho sem retorno. O valor vem
+   * do canal, cadastrado uma vez em Canais, e a mensagem de erro aponta para
+   * lá em vez de mandar preencher um cartão que a tela nem mostra.
+   */
+  const doCanal = dados.canal === 'sms'
+  const ondeCadastrar = doCanal
+    ? ' Cadastre no canal, em Canais — você preenche uma vez só.'
+    : ''
+
+  if (!perfil.nome.trim() || !perfil.nome2.trim()) {
+    return `O Monitor de Envios exige dois nomes de perfil: o principal e o reserva.${ondeCadastrar}`
   }
   for (const [rotulo, valor] of [
     ['principal', perfil.nome],
@@ -133,10 +148,7 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
       return `O nome de perfil ${rotulo} passa de ${LIMITES.perfilNome} caracteres.`
     }
   }
-  if (
-    perfil.nome.trim() &&
-    perfil.nome.trim().toLowerCase() === perfil.nome2.trim().toLowerCase()
-  ) {
+  if (perfil.nome.trim().toLowerCase() === perfil.nome2.trim().toLowerCase()) {
     return 'O perfil reserva precisa ter um nome diferente do principal.'
   }
 
@@ -150,14 +162,13 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
     ['principal', perfil.nome],
     ['reserva', perfil.nome2],
   ] as const) {
-    if (!valor.trim()) continue
     const veredito = conferirNomeDePerfil(valor)
     if (!veredito.ok) return `Perfil ${rotulo} — ${veredito.motivo}`
   }
-  if (!semPerfil && (!perfil.fotoUrl || !perfil.fotoUrl2)) {
-    return 'O Monitor de Envios exige a foto dos dois perfis.'
+  if (!perfil.fotoUrl || !perfil.fotoUrl2) {
+    return `O Monitor de Envios exige a foto dos dois perfis.${ondeCadastrar}`
   }
-  if (perfil.fotoUrl && perfil.fotoUrl === perfil.fotoUrl2) {
+  if (perfil.fotoUrl === perfil.fotoUrl2) {
     return 'A foto do perfil reserva precisa ser diferente da do principal.'
   }
 

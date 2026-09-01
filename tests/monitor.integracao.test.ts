@@ -784,7 +784,13 @@ cenario('Monitor de Envios', () => {
         channel: 'sms',
         provider: 'monitor_envios',
         label: 'SMS pelo Monitor',
-        credentials: (await import('@/lib/cripto')).guardarSegredo({ apiToken: 'token-de-teste' }),
+        credentials: (await import('@/lib/cripto')).guardarSegredo({
+          apiToken: 'token-de-teste',
+          perfilNome: perfil.nome,
+          perfilFoto: perfil.fotoUrl,
+          perfilNome2: perfil.nome2,
+          perfilFoto2: perfil.fotoUrl2,
+        }),
       })
       .returning({ id: esquema.channelConfigs.id })
 
@@ -793,7 +799,11 @@ cenario('Monitor de Envios', () => {
       .values({ orgId, channel: 'sms', price: '0.07' })
       .onConflictDoNothing()
 
-    // SEM perfil de propósito: em SMS ninguém vê nome nem foto.
+    /*
+     * Sem perfil no disparo, de propósito: em SMS ninguém vê nome nem foto.
+     * O valor vem do CANAL, que foi criado com as mesmas credenciais do
+     * WhatsApp — incluindo os quatro campos de perfil.
+     */
     const criada = await servico.criarCampanha(orgId, null, {
       nome: 'SMS de teste',
       canal: 'sms',
@@ -823,16 +833,18 @@ cenario('Monitor de Envios', () => {
     expect(Number(campanha!.unitPrice)).toBeCloseTo(0.07, 4)
 
     /*
-     * O POST não pode carregar campo de perfil vazio.
+     * O perfil VAI no POST, vindo do canal.
      *
-     * String em branco é diferente de campo ausente: é o que faz o outro lado
-     * responder "campo obrigatório vazio" em vez de simplesmente aceitar.
+     * A hipótese de que o SMS dispensaria perfil era razoável — a
+     * documentação deles não tem seção de SMS — mas a API respondeu "Campo
+     * 'perfil_nome' é obrigatório." também ali. O que a tela evita é pedir
+     * isso a cada disparo; o valor sai do cadastro do canal.
      */
-    expect(estado.recebeuUpload?.perfil_nome).toBeUndefined()
-    expect(estado.recebeuUpload?.foto_perfil).toBeUndefined()
+    expect(estado.recebeuUpload?.perfil_nome).toBe('Moveis Silva')
+    expect(estado.recebeuUpload?.perfil_nome_2).toBe('Silva Moveis')
   })
 
-  it('a régua do perfil continua valendo no WhatsApp', async () => {
+  it('a régua do perfil vale em todo canal — muda só onde cadastrar', async () => {
     const { conferirSubmissao } = await import('@/lib/channels/monitor')
     const vazio = { nome: '', fotoUrl: '', nome2: '', fotoUrl2: '' }
     const base = { nomeArquivo: 'b.csv', conteudo: 'telefone\n5511' }
@@ -843,8 +855,14 @@ cenario('Monitor de Envios', () => {
       conferirSubmissao({ nome: 'x', copy: 'oi', perfil: vazio, base, canal: 'whatsapp_nao_oficial' }),
     ).toMatch(/dois nomes/)
 
-    // Em SMS, não.
-    expect(conferirSubmissao({ nome: 'x', copy: 'oi', perfil: vazio, base, canal: 'sms' })).toBeNull()
+    /*
+     * Em SMS também — a API deles respondeu "Campo 'perfil_nome' é
+     * obrigatório." para uma campanha nossa. O que muda é a mensagem, que
+     * manda cadastrar no canal em vez de preencher a cada disparo.
+     */
+    const noSms = conferirSubmissao({ nome: 'x', copy: 'oi', perfil: vazio, base, canal: 'sms' })
+    expect(noSms).toMatch(/dois nomes/)
+    expect(noSms).toMatch(/Canais/)
   })
 
   it('recusa copy acima do limite com mídia', async () => {

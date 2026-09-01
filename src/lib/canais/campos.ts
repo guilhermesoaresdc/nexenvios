@@ -156,7 +156,7 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
       nome: 'perfilFoto',
       rotulo: 'Perfil padrão — foto',
       tipo: 'imagem',
-      dica: 'Envie do computador ou cole um link. Quadrada, no mínimo 192×192, até 5 MB.',
+      dica: 'Envie do computador ou cole um link. Quadrada, de 192×192 a 4096×4096, até 5 MB. Exigida em toda campanha — inclusive SMS, onde ninguém a vê.',
       exemplo: 'https://seusite.com.br/avatar.png',
     },
     {
