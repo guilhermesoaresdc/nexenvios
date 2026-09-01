@@ -395,3 +395,64 @@ export async function saldoNoMonitor(credencial: CredencialMonitor): Promise<num
   const dados = (await consultar(credencial, 'saldo_empresa.php', {})) as { saldo?: number } | null
   return Number(dados?.saldo ?? 0)
 }
+
+// ────────────────────────────────────────────────── diagnóstico do token
+
+/**
+ * O token, mascarado, para conferir sem expor.
+ *
+ * O comprimento é o que resolve a confusão mais comum: o Token de Acesso deles
+ * tem 40 caracteres e a Chave de Acesso tem 32. Trocar um pelo outro devolve
+ * exatamente "Token inválido" — e o valor sozinho, escondido atrás de um campo
+ * de senha, não deixa ninguém perceber a troca.
+ */
+export function impressaoDoToken(token: string): string {
+  const t = token.trim()
+  if (!t) return 'vazio'
+  const visivel = t.length <= 10 ? t.slice(0, 2) : `${t.slice(0, 4)}…${t.slice(-4)}`
+  return `${visivel} (${t.length} caracteres)`
+}
+
+export type TesteDeToken =
+  | { aceito: true; resposta: string }
+  | { aceito: false; resposta: string }
+
+/**
+ * Testa o token NO ENDPOINT QUE IMPORTA.
+ *
+ * A consulta de saldo manda o token no cabeçalho `X-API-Token`; a submissão da
+ * campanha manda como campo `api_token` de um POST multipart. São caminhos
+ * diferentes, e conferir só o primeiro deixava passar exatamente o caso que
+ * quebrou em produção: saldo respondendo bem e a campanha morrendo com "Token
+ * inválido".
+ *
+ * O POST vai sem nenhum outro campo, de propósito. Sem `perfil_nome` e sem
+ * base, eles recusam por campo obrigatório ANTES de criar qualquer coisa — o
+ * que separa "o token não presta" de "o token presta e o problema é outro"
+ * sem consumir envio nem upload. É o mesmo teste que o suporte deles indica.
+ */
+export async function conferirTokenNoUpload(
+  credencial: CredencialMonitor,
+): Promise<TesteDeToken> {
+  const form = new FormData()
+  form.set('api_token', credencial.apiToken)
+
+  const resposta = await fetch(`${BASE}/receber_campanha_externa.php`, {
+    method: 'POST',
+    body: form,
+    signal: AbortSignal.timeout(20_000),
+  })
+
+  const corpo = (await lerJson(resposta)) as { success?: boolean; message?: string } | null
+  const mensagem = corpo?.message ?? `HTTP ${resposta.status}`
+
+  /*
+   * Recusa por token é a única que interessa aqui.
+   *
+   * Qualquer outra reclamação — campo obrigatório faltando, principalmente —
+   * é BOA notícia: significa que eles passaram da autenticação e chegaram a
+   * validar o formulário.
+   */
+  const recusouToken = /token|autoriza|autentic|credencial/i.test(mensagem)
+  return { aceito: !recusouToken, resposta: mensagem }
+}

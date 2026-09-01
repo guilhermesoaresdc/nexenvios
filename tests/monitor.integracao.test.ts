@@ -35,6 +35,8 @@ type EstadoFalso = {
   baseRecebida: string
   /** Liga o 401 do lado deles: token revogado, conta suspensa, IP fora da lista. */
   tokenRevogado: boolean
+  /** A recusa por campo obrigatório, que significa "o token passou". */
+  recusaPorCampo: string | null
 }
 
 const estado: EstadoFalso = {
@@ -47,6 +49,7 @@ const estado: EstadoFalso = {
   recebeuUpload: null,
   baseRecebida: '',
   tokenRevogado: false,
+  recusaPorCampo: null,
 }
 
 let servidor: Server | undefined
@@ -81,6 +84,11 @@ cenario('Monitor de Envios', () => {
             if (!nome) continue
             const valor = parte.split('\r\n\r\n').slice(1).join('\r\n\r\n').trimEnd()
             campos[nome] = valor
+          }
+          if (estado.recusaPorCampo) {
+            res.writeHead(200, { 'content-type': 'application/json' })
+            res.end(JSON.stringify({ success: false, message: estado.recusaPorCampo }))
+            return
           }
           estado.recebeuUpload = campos
           estado.baseRecebida = campos.base_dados ?? ''
@@ -579,6 +587,48 @@ cenario('Monitor de Envios', () => {
 
     expect(canal!.falhas).toBe(0)
     expect(canal!.quebradoAte).toBeNull()
+  })
+
+  it('conferir credencial testa o endpoint do ENVIO, não só o do saldo', async () => {
+    const { conferirCredencialDoMonitor } = await import('@/lib/campanhas/externa')
+
+    /*
+     * A armadilha que custou uma ida e volta com o suporte deles: o saldo vai
+     * pelo cabeçalho `X-API-Token` e a campanha vai como campo `api_token` de
+     * um POST. São caminhos diferentes. Conferir só o saldo dava a credencial
+     * por boa enquanto a campanha morria com "Token inválido".
+     */
+    const r = await conferirCredencialDoMonitor(configId)
+    expect('erro' in r).toBe(false)
+    if ('erro' in r) return
+
+    // O token de teste tem 14 caracteres; a impressão tem que dizer o tamanho,
+    // que é o que separa Token (40) de Chave de Acesso (32).
+    expect(r.impressao).toMatch(/\(14 caracteres\)/)
+    expect(r.impressao).not.toContain('token-de-teste')
+    expect(r.upload?.aceito).toBe(true)
+  })
+
+  it('quando o envio recusa o token, a conferência reprova mesmo com saldo respondendo', async () => {
+    const { conferirTokenNoUpload } = await import('@/lib/channels/monitor')
+
+    estado.tokenRevogado = true
+    const r = await conferirTokenNoUpload({ apiToken: 'chave-de-acesso-errada' })
+    estado.tokenRevogado = false
+
+    expect(r.aceito).toBe(false)
+    expect(r.resposta).toMatch(/[Tt]oken/)
+  })
+
+  it('reclamação de campo obrigatório é BOA notícia: passou da autenticação', async () => {
+    const { conferirTokenNoUpload } = await import('@/lib/channels/monitor')
+
+    estado.recusaPorCampo = "Campo 'perfil_nome' é obrigatório."
+    const r = await conferirTokenNoUpload({ apiToken: 'token-de-teste' })
+    estado.recusaPorCampo = null
+
+    expect(r.aceito).toBe(true)
+    expect(r.resposta).toMatch(/perfil_nome/)
   })
 
   it('recusa copy acima do limite com mídia', async () => {

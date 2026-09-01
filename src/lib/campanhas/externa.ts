@@ -504,9 +504,17 @@ async function guardarRespostas(
   }
 }
 
-export type ConferenciaDaCredencial =
-  | { ok: true; saldo: number }
-  | { ok: false; erro: string }
+export type ConferenciaDaCredencial = {
+  /** A impressão do token guardado: 4 primeiros, 4 últimos e o tamanho. */
+  impressao: string
+  /** Saldo, quando a consulta por cabeçalho passou. */
+  saldo: number | null
+  /** O que a consulta de saldo disse, quando falhou. */
+  erroDoSaldo: string | null
+  /** O teste no endpoint de submissão — o que a campanha usa de verdade. */
+  upload: { aceito: boolean; resposta: string } | null
+  erroDoUpload: string | null
+}
 
 /**
  * Confere a credencial do Monitor consultando o saldo.
@@ -521,7 +529,7 @@ export type ConferenciaDaCredencial =
  */
 export async function conferirCredencialDoMonitor(
   configId: string,
-): Promise<ConferenciaDaCredencial> {
+): Promise<ConferenciaDaCredencial | { erro: string }> {
   const [config] = await db
     .select({ credentials: channelConfigs.credentials })
     .from(channelConfigs)
@@ -530,16 +538,38 @@ export async function conferirCredencialDoMonitor(
 
   const credencial = credencialDe(config?.credentials)
   if (!credencial) {
-    return { ok: false, erro: 'Este canal está sem o token de acesso do Monitor de Envios.' }
+    return { erro: 'Este canal está sem o token de acesso do Monitor de Envios.' }
   }
 
-  try {
-    const { saldoNoMonitor } = await import('@/lib/channels/monitor')
-    return { ok: true, saldo: await saldoNoMonitor(credencial) }
-  } catch (erro) {
-    return {
-      ok: false,
-      erro: erro instanceof Error ? erro.message : 'o Monitor de Envios não respondeu',
-    }
+  const { conferirTokenNoUpload, impressaoDoToken, saldoNoMonitor } = await import(
+    '@/lib/channels/monitor'
+  )
+
+  /*
+   * Os DOIS caminhos, porque eles não são o mesmo.
+   *
+   * O saldo manda o token no cabeçalho `X-API-Token`; a submissão manda como
+   * campo de um POST multipart. Conferir só o saldo deixava passar exatamente
+   * o caso que quebrou em produção — saldo respondendo bem e a campanha
+   * morrendo com "Token inválido" — e mandava a operação discutir com o
+   * suporte do outro lado sem dado nenhum na mão.
+   */
+  const [saldo, upload] = await Promise.all([
+    saldoNoMonitor(credencial).then(
+      (v) => ({ ok: true as const, valor: v }),
+      (e: unknown) => ({ ok: false as const, erro: e instanceof Error ? e.message : 'não respondeu' }),
+    ),
+    conferirTokenNoUpload(credencial).then(
+      (v) => ({ ok: true as const, valor: v }),
+      (e: unknown) => ({ ok: false as const, erro: e instanceof Error ? e.message : 'não respondeu' }),
+    ),
+  ])
+
+  return {
+    impressao: impressaoDoToken(credencial.apiToken),
+    saldo: saldo.ok ? saldo.valor : null,
+    erroDoSaldo: saldo.ok ? null : saldo.erro,
+    upload: upload.ok ? upload.valor : null,
+    erroDoUpload: upload.ok ? null : upload.erro,
   }
 }

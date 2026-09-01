@@ -329,9 +329,39 @@ export async function conferirCredencial(_anterior: Estado, form: FormData): Pro
   if (!canal) return { erro: 'Canal não encontrado.' }
 
   const r = await conferirCredencialDoMonitor(configId.data)
-  if (!r.ok) return { erro: `A credencial não passou: ${r.erro}` }
+  if ('erro' in r) return { erro: r.erro }
 
-  return {
-    ok: `Credencial certa. A conta tem ${r.saldo.toLocaleString('pt-BR')} envio(s) de saldo no Monitor.`,
+  /*
+   * O veredito é o do UPLOAD, não o do saldo.
+   *
+   * É o endpoint que a campanha usa. Já aconteceu de o saldo responder bem e a
+   * campanha morrer com "Token inválido" — são caminhos diferentes, e dar a
+   * credencial por boa olhando só o saldo mandou a operação discutir com o
+   * suporte do outro lado sem dado nenhum na mão.
+   */
+  const partes = [`Token ${r.impressao}.`]
+
+  if (r.upload?.aceito) {
+    partes.push('O envio de campanha aceita este token.')
+  } else if (r.upload) {
+    partes.push(`O envio de campanha RECUSOU: "${r.upload.resposta}".`)
+  } else {
+    partes.push(`Não deu para testar o envio de campanha: ${r.erroDoUpload}.`)
   }
+
+  if (r.saldo !== null) {
+    partes.push(`Saldo no Monitor: ${r.saldo.toLocaleString('pt-BR')} envio(s).`)
+  } else {
+    partes.push(`A consulta de saldo falhou: ${r.erroDoSaldo}.`)
+  }
+
+  const passou = r.upload?.aceito === true
+  if (!passou) {
+    partes.push(
+      'O Token de Acesso tem 40 caracteres e começa com zero; a Chave de Acesso, 32. Trocar um pelo outro dá exatamente esta recusa.',
+    )
+    return { erro: partes.join(' ') }
+  }
+
+  return { ok: partes.join(' ') }
 }
