@@ -297,6 +297,19 @@ export async function submeterCampanha(
   return { ok: true, codigo: corpo.codigo_acompanhamento, id: corpo.id ?? 0 }
 }
 
+/**
+ * O erro é da CAMPANHA, e não da credencial?
+ *
+ * 404 ("Campanha não encontrada") e 403 ("não tem permissão") são definitivos:
+ * tentar de novo daqui a um minuto não muda nada. Distinguir importa por dois
+ * motivos — não sujar a saúde do canal com um problema que não é dele, e parar
+ * de gastar uma requisição por minuto do teto deles com algo que nunca vai
+ * resolver.
+ */
+export function eErroDaCampanha(mensagem: string): boolean {
+  return /n[ãa]o encontrada|n[ãa]o tem permiss[ãa]o|pertence a outra/i.test(mensagem)
+}
+
 async function lerJson(resposta: Response): Promise<unknown> {
   try {
     return await resposta.json()
@@ -313,8 +326,23 @@ async function consultar(
   const url = new URL(`${BASE}/${rota}`)
   for (const [chave, valor] of Object.entries(parametros)) url.searchParams.set(chave, valor)
 
-  // O token vai no cabeçalho, não na URL: assim ele não fica gravado no log
-  // do servidor deles nem em nenhum proxy pelo caminho.
+  /*
+   * O token vai pelos DOIS caminhos: parâmetro e cabeçalho.
+   *
+   * A seção 1 da documentação deles promete que os dois valem em qualquer
+   * endpoint, mas só `saldo_empresa.php` repete isso na própria seção — todos
+   * os outros exemplos usam `?api_token=`. Mandando só o cabeçalho,
+   * `status_aprovacao.php` respondeu "Campanha não encontrada." a CADA minuto
+   * para uma campanha que existe e estava na fila deles: sem reconhecer a
+   * conta, a busca pelo código não acha nada, e o erro sai como campanha
+   * inexistente em vez de token ausente.
+   *
+   * O preço é o token aparecer no log de acesso deles. Eles registram tudo de
+   * qualquer forma (§6.5), e uma campanha que não dá para acompanhar custa
+   * mais.
+   */
+  url.searchParams.set('api_token', credencial.apiToken)
+
   const resposta = await fetch(url, {
     headers: { 'X-API-Token': credencial.apiToken },
     signal: AbortSignal.timeout(20_000),

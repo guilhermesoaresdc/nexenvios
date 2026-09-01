@@ -37,6 +37,11 @@ type EstadoFalso = {
   tokenRevogado: boolean
   /** As rotas que o cliente bateu, para provar o que ele NÃO chamou. */
   rotasChamadas: string[]
+  /** O 404 deles: código que não existe naquela conta. */
+  campanhaSumida: boolean
+  /** O token que chegou na última consulta, e por qual caminho. */
+  tokenNaUrl: string | null
+  tokenNoCabecalho: string | null
 }
 
 const estado: EstadoFalso = {
@@ -50,6 +55,9 @@ const estado: EstadoFalso = {
   baseRecebida: '',
   tokenRevogado: false,
   rotasChamadas: [],
+  campanhaSumida: false,
+  tokenNaUrl: null,
+  tokenNoCabecalho: null,
 }
 
 let servidor: Server | undefined
@@ -66,6 +74,14 @@ cenario('Monitor de Envios', () => {
     servidor = createServer((req, res) => {
       const url = new URL(req.url ?? '/', BASE_FALSA)
       estado.rotasChamadas.push(url.pathname)
+      estado.tokenNaUrl = url.searchParams.get('api_token')
+      estado.tokenNoCabecalho = (req.headers['x-api-token'] as string | undefined) ?? null
+
+      if (estado.campanhaSumida && url.pathname.endsWith('status_aprovacao.php')) {
+        res.writeHead(404, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ success: false, message: 'Campanha não encontrada.' }))
+        return
+      }
 
       if (estado.tokenRevogado && url.pathname.endsWith('.php')) {
         res.writeHead(401, { 'content-type': 'application/json' })
@@ -95,6 +111,11 @@ cenario('Monitor de Envios', () => {
             codigo_acompanhamento: 'codigo-falso-123',
           })
         })
+        return
+      }
+
+      if (url.pathname.endsWith('saldo_empresa.php')) {
+        json(res, { success: true, message: 'Saldo recuperado.', data: { saldo: 352781 } })
         return
       }
 
@@ -671,6 +692,73 @@ cenario('Monitor de Envios', () => {
     expect(conferirSubmissao({ ...comum, mediaUrl: 'https://x/arte.jpg' })).toBeNull()
     expect(conferirSubmissao({ ...comum, mediaUrl: 'https://x/video.mp4' })).toBeNull()
     expect(conferirSubmissao({ ...comum, mediaUrl: 'https://x/video.mov' })).toBeNull()
+  })
+
+  it('manda o token na URL também, não só no cabeçalho', async () => {
+    const { saldoNoMonitor } = await import('@/lib/channels/monitor')
+
+    /*
+     * Só o cabeçalho fez `status_aprovacao.php` responder "Campanha não
+     * encontrada." a cada minuto, em produção, para uma campanha que existia:
+     * sem reconhecer a conta, a busca pelo código não acha nada. A seção 1 da
+     * documentação deles promete que os dois caminhos valem — mandar os dois
+     * custa nada e é o que os exemplos deles fazem.
+     */
+    await saldoNoMonitor({ apiToken: 'token-de-teste' })
+    expect(estado.tokenNaUrl).toBe('token-de-teste')
+    expect(estado.tokenNoCabecalho).toBe('token-de-teste')
+  })
+
+  it('campanha que o Monitor não acha desiste, e NÃO culpa o canal', async () => {
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    /*
+     * Aconteceu em produção: uma campanha aceita pelo Monitor passou a
+     * responder "Campanha não encontrada." a cada minuto, para sempre. O canal
+     * ficou marcado como quebrado com a credencial perfeita, e cada minuto
+     * gastava uma requisição do teto deles.
+     */
+    const criada = await (await import('@/lib/campanhas/servico')).criarCampanha(orgId, null, {
+      nome: 'Some do lado deles',
+      canal: 'whatsapp_nao_oficial',
+      configId,
+      corpo: 'Texto',
+      fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
+      perfil,
+    })
+    expect(criada.ok).toBe(true)
+    if (!criada.ok) return
+
+    await db
+      .update(esquema.channelConfigs)
+      .set({ failureStreak: 0, brokenUntil: null })
+      .where(eq(esquema.channelConfigs.id, configId))
+
+    estado.campanhaSumida = true
+    for (let i = 0; i < 5; i += 1) {
+      await db
+        .update(esquema.campaigns)
+        .set({ externalSyncedAt: null })
+        .where(eq(esquema.campaigns.id, criada.campanhaId))
+      await sincronizarExternas()
+    }
+    estado.campanhaSumida = false
+
+    const [campanha] = await db
+      .select()
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, criada.campanhaId))
+    expect(campanha!.status).toBe('falhou')
+    expect(campanha!.externalReason).toMatch(/não encontrada/i)
+
+    // E o canal continua limpo: o problema era da campanha, não da credencial.
+    const [canal] = await db
+      .select({ falhas: esquema.channelConfigs.failureStreak })
+      .from(esquema.channelConfigs)
+      .where(eq(esquema.channelConfigs.id, configId))
+    expect(canal!.falhas).toBe(0)
   })
 
   it('recusa copy acima do limite com mídia', async () => {

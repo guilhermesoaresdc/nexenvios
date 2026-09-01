@@ -6,6 +6,7 @@ import { lerSegredo } from '@/lib/cripto'
 import { criarLog } from '@/lib/log'
 import {
   conferirSubmissao,
+  eErroDaCampanha,
   progressoDaCampanha,
   respostasDaCampanha,
   statusDeAprovacao,
@@ -44,6 +45,18 @@ const POR_BATIDA = 5
 
 /** Quanto tempo esperar antes de consultar a mesma campanha de novo. */
 const INTERVALO_SEGUNDOS = 60
+
+/**
+ * Quantas falhas seguidas antes de desistir de acompanhar a campanha.
+ *
+ * Erro definitivo (código que não existe, campanha de outra conta) não melhora
+ * com o tempo: cinco minutos bastam para descartar uma coincidência. Já uma
+ * falha de rede ou um 429 passam — por isso o outro teto é de quatro horas,
+ * longo o bastante para atravessar uma instabilidade e curto o bastante para
+ * não gastar o teto de requisições deles por dias.
+ */
+const DESISTE_APOS_PERMANENTE = 5
+const DESISTE_APOS = 240
 
 export const PROVEDOR = 'monitor_envios'
 
@@ -248,6 +261,7 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
       status: campaigns.status,
       externalStatus: campaigns.externalStatus,
       billed: campaigns.externalBilled,
+      falhas: campaigns.externalSyncFailures,
       total: campaigns.total,
       unitPrice: campaigns.unitPrice,
       configId: campaigns.configId,
@@ -294,6 +308,12 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
     resumo.conferidas += 1
     try {
       await sincronizarUma(campanha, credencial, resumo)
+      if (campanha.falhas > 0) {
+        await db
+          .update(campaigns)
+          .set({ externalSyncFailures: 0 })
+          .where(eq(campaigns.id, campanha.id))
+      }
       /*
        * A consulta que deu certo religa o canal.
        *
@@ -307,15 +327,46 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
     } catch (erro) {
       // Uma campanha que falha não pode parar as outras. O carimbo de
       // sincronização vai junto para não repetir a mesma no minuto seguinte.
-      log.error('não deu para sincronizar', {
-        campanha: campanha.id,
-        motivo: erro instanceof Error ? erro.message : 'desconhecido',
-      })
+      const motivo = erro instanceof Error ? erro.message : 'desconhecido'
+      const daCampanha = eErroDaCampanha(motivo)
+      const falhas = campanha.falhas + 1
+
+      log.error('não deu para sincronizar', { campanha: campanha.id, motivo, falhas })
+
+      /*
+       * Erro DA CAMPANHA não é erro do canal.
+       *
+       * "Campanha não encontrada" e "não tem permissão" dizem respeito àquele
+       * código, não à credencial — e foi assim que uma campanha sozinha deixou
+       * o canal marcado como quebrado em produção, com o token perfeitamente
+       * bom. O disjuntor só ouve o que é do canal.
+       */
+      if (!daCampanha && campanha.configId) await registrarFalhaDoCanal(campanha.configId)
+
+      /*
+       * E em algum ponto se desiste, com o motivo escrito.
+       *
+       * Sem isto a campanha ficava para sempre na fila de sincronização —
+       * ela só sai de lá quando muda de status, e o erro impedia justamente
+       * isso. Uma requisição por minuto, para sempre, contra o teto de 200 por
+       * hora deles.
+       */
+      const desistir = daCampanha ? falhas >= DESISTE_APOS_PERMANENTE : falhas >= DESISTE_APOS
       await db
         .update(campaigns)
-        .set({ externalSyncedAt: new Date() })
+        .set(
+          desistir
+            ? {
+                status: 'falhou',
+                externalSyncedAt: new Date(),
+                externalSyncFailures: falhas,
+                externalReason: `Não foi possível acompanhar esta campanha no Monitor de Envios: ${motivo}`,
+                finishedAt: new Date(),
+                updatedAt: new Date(),
+              }
+            : { externalSyncedAt: new Date(), externalSyncFailures: falhas },
+        )
         .where(eq(campaigns.id, campanha.id))
-      if (campanha.configId) await registrarFalhaDoCanal(campanha.configId)
     }
   }
 
@@ -331,6 +382,8 @@ type CampanhaExterna = {
   status: string
   externalStatus: string | null
   billed: number
+  /** Falhas seguidas de sincronização desta campanha. */
+  falhas: number
   total: number
   unitPrice: string
   /** Nulo quando o canal foi apagado — não há disjuntor para alimentar. */

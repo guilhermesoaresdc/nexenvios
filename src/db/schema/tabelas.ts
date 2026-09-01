@@ -302,6 +302,8 @@ export const campaigns = pgTable(
     externalSyncedAt: timestamp('external_synced_at', { withTimezone: true }),
     /** Quanto já foi cobrado. O progresso deles é acumulado, não incremental. */
     externalBilled: integer('external_billed').notNull().default(0),
+  /** Falhas seguidas de sincronização. Zera no primeiro sucesso. */
+  externalSyncFailures: integer('external_sync_failures').notNull().default(0),
     profileName: text('profile_name'),
     profilePhotoUrl: text('profile_photo_url'),
     profileName2: text('profile_name_2'),
