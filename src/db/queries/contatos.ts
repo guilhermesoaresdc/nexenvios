@@ -80,16 +80,18 @@ export type LinhaDeLista = {
   total: number
   criadaEm: Date
   autor: string | null
+  /** A lista de teste da organização. Vem primeiro na ordenação. */
+  deTeste: boolean
 }
 
 export async function listarListas(orgId: string): Promise<LinhaDeLista[]> {
   return sql<LinhaDeLista[]>`
     SELECT l.id, l.name AS nome, l.description AS descricao, l.total,
-           l.created_at AS "criadaEm", u.name AS autor
+           l.created_at AS "criadaEm", u.name AS autor, l.is_test AS "deTeste"
       FROM contact_lists l
       LEFT JOIN users u ON u.id = l.created_by
      WHERE l.org_id = ${orgId}
-     ORDER BY l.created_at DESC
+     ORDER BY l.is_test DESC, l.created_at DESC
   `
 }
 

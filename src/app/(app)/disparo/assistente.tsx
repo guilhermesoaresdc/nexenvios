@@ -66,7 +66,7 @@ export type CanalDisponivel = {
   perfilPadrao: { nome: string; fotoUrl: string; nome2: string; fotoUrl2: string } | null
 }
 
-export type ListaDisponivel = { id: string; nome: string; total: number }
+export type ListaDisponivel = { id: string; nome: string; total: number; deTeste?: boolean }
 export type EtiquetaDisponivel = { etiqueta: string; total: number }
 
 const PASSOS = ['Canal', 'Público', 'Mensagem', 'Ritmo e envio'] as const
@@ -628,8 +628,21 @@ export function Assistente({
                             marcada={!todaABase && listasEscolhidas.includes(l.id)}
                             desabilitada={todaABase}
                             alternar={() => alternarLista(l.id)}
-                            titulo={l.nome}
-                            nota={`${numero(l.total)} contatos`}
+                            titulo={
+                              l.deTeste ? (
+                                <span className="flex flex-wrap items-center gap-2">
+                                  {l.nome}
+                                  <Chip tom="azul">Teste</Chip>
+                                </span>
+                              ) : (
+                                l.nome
+                              )
+                            }
+                            nota={
+                              l.deTeste
+                                ? `${numero(l.total)} contatos · use para conferir antes de mandar para a base`
+                                : `${numero(l.total)} contatos`
+                            }
                           />
                         ))}
                       </div>

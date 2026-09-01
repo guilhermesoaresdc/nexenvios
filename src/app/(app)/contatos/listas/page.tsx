@@ -54,6 +54,7 @@ export default async function Listas() {
                         total: l.total,
                         criadaEm: data(l.criadaEm),
                         autor: l.autor,
+                        deTeste: l.deTeste,
                       }}
                       podeEditar={!usuario.isLeitor}
                     />

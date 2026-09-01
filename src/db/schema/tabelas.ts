@@ -167,6 +167,8 @@ export const contactLists = pgTable('contact_lists', {
   name: text('name').notNull(),
   description: text('description'),
   total: integer('total').notNull().default(0),
+  /** A lista de teste da organização. No máximo uma, garantido por índice. */
+  isTest: boolean('is_test').notNull().default(false),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: agora(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -3,8 +3,9 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { importarLote } from '../acoes'
-import { normalizarTelefone } from '@/lib/telefone'
+import { ler, MOTIVO } from '@/lib/contatos/leitura'
 import {
+  AreaTexto,
   Aviso,
   Botao,
   Campo,
@@ -21,95 +22,13 @@ import {
 } from '@/components/ui/base'
 import { numero } from '@/lib/ui'
 
-/**
- * A leitura da planilha acontece AQUI, no navegador.
- *
- * Subir cem mil linhas para o servidor só para descobrir que metade é inválida
- * é caro e lento; e o erro por linha só é útil se vier com a linha ORIGINAL,
- * para a pessoa achar no Excel. Depois de conferir, só os números já
- * normalizados sobem, em lotes.
- */
-
-const CABECALHOS_TELEFONE = [
-  'telefone',
-  'celular',
-  'whatsapp',
-  'fone',
-  'numero',
-  'número',
-  'number',
-  'phone',
-  'msisdn',
-  'tel',
-]
-const CABECALHOS_NOME = ['nome', 'name', 'contato', 'cliente', 'razao', 'razão']
-
-const MOTIVO: Record<string, string> = {
-  vazio: 'sem número',
-  curto: 'dígitos de menos',
-  longo: 'dígitos demais',
-  ddd: 'DDD que não existe',
-  formato: 'não parece um telefone',
-  repetido: 'repetido na planilha',
-}
-
-type Valida = { telefone: string; nome: string | null; linha: number }
-type Recusada = { original: string; motivo: string; linha: number }
-
-function separar(linha: string): string[] {
-  // Ponto-e-vírgula primeiro: é o separador que o Excel brasileiro usa.
-  const sep = linha.includes(';') ? ';' : linha.includes('\t') ? '\t' : ','
-  return linha.split(sep).map((c) => c.trim().replace(/^"|"$/g, ''))
-}
-
-function ler(texto: string): { validas: Valida[]; recusadas: Recusada[]; total: number } {
-  const linhas = texto.split(/\r?\n/).filter((l) => l.trim() !== '')
-  if (linhas.length === 0) return { validas: [], recusadas: [], total: 0 }
-
-  const primeira = separar(linhas[0]!).map((c) => c.toLowerCase())
-  const temCabecalho = primeira.some(
-    (c) => CABECALHOS_TELEFONE.includes(c) || CABECALHOS_NOME.includes(c),
-  )
-
-  let colTelefone = 0
-  let colNome = -1
-  if (temCabecalho) {
-    colTelefone = primeira.findIndex((c) => CABECALHOS_TELEFONE.includes(c))
-    colNome = primeira.findIndex((c) => CABECALHOS_NOME.includes(c))
-    if (colTelefone < 0) colTelefone = 0
-  }
-
-  const validas: Valida[] = []
-  const recusadas: Recusada[] = []
-  const vistos = new Set<string>()
-
-  for (let i = temCabecalho ? 1 : 0; i < linhas.length; i += 1) {
-    const numeroDaLinha = i + 1
-    const colunas = separar(linhas[i]!)
-    const bruto = colunas[colTelefone] ?? ''
-    const nome = colNome >= 0 ? (colunas[colNome] ?? null) : (colunas[1] ?? null)
-
-    const norm = normalizarTelefone(bruto)
-    if (!norm.ok) {
-      recusadas.push({ original: linhas[i]!.slice(0, 60), motivo: norm.motivo, linha: numeroDaLinha })
-      continue
-    }
-    if (vistos.has(norm.e164)) {
-      recusadas.push({ original: linhas[i]!.slice(0, 60), motivo: 'repetido', linha: numeroDaLinha })
-      continue
-    }
-    vistos.add(norm.e164)
-    validas.push({ telefone: norm.e164, nome: nome?.trim() || null, linha: numeroDaLinha })
-  }
-
-  return { validas, recusadas, total: linhas.length - (temCabecalho ? 1 : 0) }
-}
-
 const LOTE = 2_000
 
 export function Painel({ listas }: { listas: { id: string; nome: string; total: number }[] }) {
   const router = useRouter()
   const [arquivo, setArquivo] = useState<string | null>(null)
+  const [modo, setModo] = useState<'arquivo' | 'colar'>('arquivo')
+  const [colado, setColado] = useState('')
   const [lido, setLido] = useState<ReturnType<typeof ler> | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [progresso, setProgresso] = useState<number | null>(null)
@@ -120,6 +39,26 @@ export function Painel({ listas }: { listas: { id: string; nome: string; total: 
     descadastrados: number
   } | null>(null)
   const [enviando, iniciar] = useTransition()
+
+  function trocarModo(novo: 'arquivo' | 'colar') {
+    // Trocar de porta zera a leitura: deixar a conferência da planilha na tela
+    // enquanto a caixa de colar está vazia faria a pessoa importar o que
+    // achava ter descartado.
+    setModo(novo)
+    setLido(null)
+    setErro(null)
+    setResultado(null)
+    setArquivo(null)
+    setColado('')
+  }
+
+  function aoColar(texto: string) {
+    setColado(texto)
+    setErro(null)
+    setResultado(null)
+    setArquivo(texto.trim() ? 'colado na tela' : null)
+    setLido(texto.trim() ? ler(texto) : null)
+  }
 
   async function aoEscolher(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -220,25 +159,56 @@ export function Painel({ listas }: { listas: { id: string; nome: string; total: 
       <div className="space-y-5">
         <Pad>
           <PadTitulo
-            titulo="1. Escolha o arquivo"
+            titulo="1. De onde vêm os números"
             descricao="CSV ou TXT. Reconhece as colunas telefone, celular, whatsapp, número — e nome."
           />
-          <div className="p-6">
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-[12px] border-2 border-dashed border-line bg-paper-alt/40 px-6 py-10 text-center transition-colors hover:border-blue hover:bg-blue/4">
-              <input type="file" accept=".csv,.txt,text/csv,text/plain" className="hidden" onChange={aoEscolher} />
-              <span className="text-[.95rem] font-semibold text-navy">
-                {arquivo ?? 'Clique para escolher a planilha'}
-              </span>
-              <span className="mt-1 text-[.82rem] text-muted">
-                Um número por linha. Com ou sem cabeçalho.
-              </span>
-            </label>
+          <div className="space-y-4 p-6">
+            <div className="flex gap-2">
+              <Botao
+                type="button"
+                tom={modo === 'arquivo' ? 'primario' : 'contorno'}
+                tamanho="sm"
+                onClick={() => trocarModo('arquivo')}
+              >
+                Planilha
+              </Botao>
+              <Botao
+                type="button"
+                tom={modo === 'colar' ? 'primario' : 'contorno'}
+                tamanho="sm"
+                onClick={() => trocarModo('colar')}
+              >
+                Colar números
+              </Botao>
+            </div>
 
-            {erro ? (
-              <Aviso tom="erro" className="mt-4">
-                {erro}
-              </Aviso>
-            ) : null}
+            {modo === 'arquivo' ? (
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-[12px] border-2 border-dashed border-line bg-paper-alt/40 px-6 py-10 text-center transition-colors hover:border-blue hover:bg-blue/4">
+                <input type="file" accept=".csv,.txt,text/csv,text/plain" className="hidden" onChange={aoEscolher} />
+                <span className="text-[.95rem] font-semibold text-navy">
+                  {arquivo ?? 'Clique para escolher a planilha'}
+                </span>
+                <span className="mt-1 text-[.82rem] text-muted">
+                  Um número por linha. Com ou sem cabeçalho.
+                </span>
+              </label>
+            ) : (
+              <div className="space-y-2">
+                <AreaTexto
+                  value={colado}
+                  onChange={(e) => aoColar(e.target.value)}
+                  rows={7}
+                  className="font-mono text-[.82rem]"
+                  placeholder={'11 98765-4321, Maria\n(88) 99264-0298, João\n5511912345678'}
+                />
+                <p className="text-[.78rem] text-muted">
+                  Um por linha; o nome depois da vírgula é opcional. Passa pela mesma conferência
+                  da planilha — colar não é caminho mais frouxo.
+                </p>
+              </div>
+            )}
+
+            {erro ? <Aviso tom="erro">{erro}</Aviso> : null}
           </div>
         </Pad>
 
@@ -246,7 +216,7 @@ export function Painel({ listas }: { listas: { id: string; nome: string; total: 
           <Pad>
             <PadTitulo
               titulo="2. Confira o que entrou"
-              descricao="Nada foi gravado ainda. Estes números são o que a planilha entregou depois de limpar."
+              descricao="Nada foi gravado ainda. Estes são os números que sobraram depois da limpeza."
             />
             <div className="space-y-5 p-6">
               <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-1">

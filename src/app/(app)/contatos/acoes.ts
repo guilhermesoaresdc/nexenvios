@@ -55,6 +55,33 @@ export async function renomearLista(_anterior: Estado, form: FormData): Promise<
   return { ok: 'Lista salva.' }
 }
 
+/**
+ * Marca (ou desmarca) a lista de teste da organização.
+ *
+ * Uma só, e o índice único no banco garante — mas quem tira a anterior é este
+ * UPDATE. Sem ele, marcar a segunda estouraria erro de índice na cara de quem
+ * clicou, em vez de simplesmente trocar, que é o que a pessoa quis dizer.
+ */
+export async function marcarListaDeTeste(listaId: string, marcar: boolean): Promise<void> {
+  const usuario = await exigirUsuario()
+  exigirEscrita(usuario)
+
+  if (marcar) {
+    await db
+      .update(contactLists)
+      .set({ isTest: false })
+      .where(and(eq(contactLists.orgId, usuario.orgId), eq(contactLists.isTest, true)))
+  }
+
+  await db
+    .update(contactLists)
+    .set({ isTest: marcar })
+    .where(and(eq(contactLists.id, listaId), eq(contactLists.orgId, usuario.orgId)))
+
+  revalidatePath('/contatos/listas')
+  revalidatePath('/disparo')
+}
+
 /** Apaga a lista, não os contatos: o vínculo cai por cascade. */
 export async function apagarLista(listaId: string): Promise<void> {
   const usuario = await exigirUsuario()

@@ -66,7 +66,7 @@ export default async function NovoDisparo() {
       ) : (
         <Assistente
           canais={disponiveis}
-          listas={listas.map((l) => ({ id: l.id, nome: l.nome, total: l.total }))}
+          listas={listas.map((l) => ({ id: l.id, nome: l.nome, total: l.total, deTeste: l.deTeste }))}
           etiquetas={etiquetas.map((e) => ({ etiqueta: e.etiqueta, total: e.total }))}
           ativosNaBase={base.ativos}
           saldo={Number(usuario.credits)}
