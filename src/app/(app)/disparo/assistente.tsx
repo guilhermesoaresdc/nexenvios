@@ -37,6 +37,7 @@ import {
   Selecao,
   Vazio,
 } from '@/components/ui/base'
+import { CampoDeImagem } from '@/components/ui/imagem'
 import { conferirNomeDePerfil, TAMANHO_MAXIMO } from '@/lib/channels/nome-perfil'
 import { criarDisparo, enviarTeste, orcarDisparo } from './acoes'
 import { Previa, textoQueSai } from './previa'
@@ -792,14 +793,15 @@ export function Assistente({
               ) : null}
 
               <Campo
-                rotulo="URL da mídia (opcional)"
-                dica="Link público de imagem, PDF ou áudio. O provedor precisa conseguir baixar sozinho."
+                rotulo="Mídia (opcional)"
+                dica="Imagem, PDF ou áudio, até 5 MB. Envie do computador ou cole um link público — o provedor precisa conseguir baixar sozinho."
               >
-                <Entrada
-                  type="url"
+                <CampoDeImagem
+                  name="mediaUrl"
                   value={mediaUrl}
-                  onChange={(e) => setMediaUrl(e.target.value)}
-                  placeholder="https://…"
+                  onChange={setMediaUrl}
+                  uso="midia"
+                  exemplo="ou cole o link de uma imagem, PDF ou áudio"
                 />
               </Campo>
 
@@ -1100,13 +1102,14 @@ export function Assistente({
                     <Campo
                       rotulo="Perfil principal — foto"
                       obrigatorio
-                      dica="Quadrada, mínimo 192×192, até 5 MB."
+                      dica="Envie do computador ou cole um link. Quadrada, mínimo 192×192, até 5 MB."
                     >
-                      <Entrada
-                        type="url"
+                      <CampoDeImagem
+                        name="perfilFoto"
                         value={perfilFoto}
-                        onChange={(e) => setPerfilFoto(e.target.value)}
-                        placeholder="https://seusite.com.br/avatar.png"
+                        onChange={setPerfilFoto}
+                        uso="perfil"
+                        exemplo="https://seusite.com.br/avatar.png"
                       />
                     </Campo>
                     <Campo
@@ -1131,11 +1134,12 @@ export function Assistente({
                       obrigatorio
                       dica="Uma imagem diferente da principal."
                     >
-                      <Entrada
-                        type="url"
+                      <CampoDeImagem
+                        name="perfilFoto2"
                         value={perfilFoto2}
-                        onChange={(e) => setPerfilFoto2(e.target.value)}
-                        placeholder="https://seusite.com.br/avatar-2.png"
+                        onChange={setPerfilFoto2}
+                        uso="perfil"
+                        exemplo="https://seusite.com.br/avatar-2.png"
                       />
                     </Campo>
                   </div>

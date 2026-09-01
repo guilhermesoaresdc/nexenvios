@@ -5,6 +5,8 @@ import { CANAL_CODIGO, CANAL_LABEL, PROVEDOR_LABEL, type Channel } from '@/db/sc
 import { Aviso, Etiqueta, Pad, PadTitulo } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { Cartao, Novo } from './painel'
+import { entregaACampanhaInteira } from '@/db/schema/enums'
+import { lerSegredo } from '@/lib/cripto'
 
 export const metadata: Metadata = { title: 'Provedores' }
 export const dynamic = 'force-dynamic'
@@ -22,6 +24,27 @@ type ProvedorDaPlataforma = {
   /** Quantos clientes distintos enviaram por ele nos últimos 30 dias. */
   clientes: number
   envios30: number
+  credenciais: string | null
+}
+
+/**
+ * Só o perfil, decifrado — o token fica para trás.
+ *
+ * Nome e foto de perfil são o que o destinatário vê; não há segredo neles, e
+ * devolvê-los evita que abrir a edição pareça ter apagado o cadastro. Espelha
+ * o mesmo recorte de `queries/canais.ts`.
+ */
+function perfilDe(credenciais: string | null) {
+  const segredo = lerSegredo<Record<string, unknown>>(credenciais)
+  if (!segredo) return null
+  const texto = (c: string) => (typeof segredo[c] === 'string' ? (segredo[c] as string) : '')
+  const perfil = {
+    nome: texto('perfilNome'),
+    fotoUrl: texto('perfilFoto'),
+    nome2: texto('perfilNome2'),
+    fotoUrl2: texto('perfilFoto2'),
+  }
+  return perfil.nome || perfil.fotoUrl || perfil.nome2 || perfil.fotoUrl2 ? perfil : null
 }
 
 export default async function Provedores() {
@@ -31,6 +54,7 @@ export default async function Provedores() {
     SELECT c.id, c.channel AS canal, c.provider AS provedor, c.label AS rotulo,
            c.active AS ativo, c.is_default AS padrao,
            (c.credentials IS NOT NULL) AS "temCredencial",
+           c.credentials AS credenciais,
            c.broken_until AS "quebradoAte", c.failure_streak AS "falhasSeguidas",
            (SELECT count(DISTINCT d.org_id)::int FROM dispatches d
              WHERE d.config_id = c.id AND d.created_at >= now() - interval '30 days') AS clientes,
@@ -69,6 +93,7 @@ export default async function Provedores() {
                     ativo: p.ativo,
                     padrao: p.padrao,
                     temCredencial: p.temCredencial,
+                    perfil: entregaACampanhaInteira(p.provedor) ? perfilDe(p.credenciais) : null,
                   }}
                   titulo={
                     <span className="flex flex-wrap items-center gap-2">

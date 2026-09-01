@@ -407,6 +407,25 @@ export const apiKeys = pgTable('api_keys', {
   createdAt: agora(),
 })
 
+/**
+ * Imagem, PDF ou áudio enviado pela tela.
+ *
+ * Os bytes ficam no banco de propósito — ver a migration 0010. `bytes` é
+ * `bytea`, e o Drizzle não tem tipo próprio para ele: as leituras e escritas
+ * passam por `lib/midia`, que usa SQL direto.
+ */
+export const mediaFiles = pgTable('media_files', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  mime: text('mime').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  width: integer('width'),
+  height: integer('height'),
+  originalName: text('original_name'),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: agora(),
+})
+
 export const webhookTokens = pgTable('webhook_tokens', {
   token: text('token').primaryKey(),
   orgId: uuid('org_id')

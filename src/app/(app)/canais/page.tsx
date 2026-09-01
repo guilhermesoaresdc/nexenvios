@@ -83,6 +83,7 @@ export default async function Canais() {
                       ativo: c.ativo,
                       padrao: c.padrao,
                       temCredencial: c.temCredencial,
+                      perfil: c.perfilPadrao,
                     }}
                     daPlataforma={c.orgId === null}
                     provedorNome={PROVEDOR_LABEL[c.provedor] ?? c.provedor}

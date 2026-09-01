@@ -23,6 +23,7 @@ import {
   Etiqueta,
   Selecao,
 } from '@/components/ui/base'
+import { CampoDeImagem } from '@/components/ui/imagem'
 
 /**
  * O formulário de credencial, montado a partir de `CAMPOS_DO_PROVEDOR`.
@@ -41,7 +42,18 @@ function Salvar({ novo }: { novo: boolean }) {
   )
 }
 
-function CampoDoFormulario({ campo, novo }: { campo: CampoDoProvedor; novo: boolean }) {
+function CampoDoFormulario({
+  campo,
+  novo,
+  valorInicial,
+  daPlataforma,
+}: {
+  campo: CampoDoProvedor
+  novo: boolean
+  /** O que já está guardado. Só chega para campo que não é segredo. */
+  valorInicial?: string
+  daPlataforma?: boolean
+}) {
   const dica = campo.segredo
     ? novo
       ? campo.dica
@@ -50,9 +62,20 @@ function CampoDoFormulario({ campo, novo }: { campo: CampoDoProvedor; novo: bool
 
   const comum = {
     name: campo.nome,
-    defaultValue: campo.segredo ? '' : (campo.padrao ?? ''),
+    defaultValue: campo.segredo ? '' : (valorInicial ?? campo.padrao ?? ''),
     placeholder: campo.exemplo,
     required: campo.obrigatorio && (novo || !campo.segredo),
+  }
+
+  if (campo.tipo === 'imagem') {
+    return (
+      <CampoDeImagemDoFormulario
+        campo={campo}
+        dica={dica}
+        valorInicial={valorInicial ?? ''}
+        daPlataforma={daPlataforma}
+      />
+    )
   }
 
   return (
@@ -83,6 +106,32 @@ function CampoDoFormulario({ campo, novo }: { campo: CampoDoProvedor; novo: bool
   )
 }
 
+function CampoDeImagemDoFormulario({
+  campo,
+  dica,
+  valorInicial,
+  daPlataforma,
+}: {
+  campo: CampoDoProvedor
+  dica?: string
+  valorInicial: string
+  daPlataforma?: boolean
+}) {
+  const [url, setUrl] = useState(valorInicial)
+  return (
+    <Campo rotulo={campo.rotulo} dica={dica} obrigatorio={campo.obrigatorio}>
+      <CampoDeImagem
+        name={campo.nome}
+        value={url}
+        onChange={setUrl}
+        uso="perfil"
+        daPlataforma={daPlataforma}
+        exemplo={campo.exemplo}
+      />
+    </Campo>
+  )
+}
+
 export type CanalParaEditar = {
   id: string
   canal: Channel
@@ -91,6 +140,8 @@ export type CanalParaEditar = {
   ativo: boolean
   padrao: boolean
   temCredencial: boolean
+  /** O perfil já cadastrado, para a edição não nascer em branco. */
+  perfil?: { nome: string; fotoUrl: string; nome2: string; fotoUrl2: string } | null
 }
 
 export function FormularioDeCanal({
@@ -117,6 +168,22 @@ export function FormularioDeCanal({
     : (listaDeProvedores[0] ?? 'generico')
   const campos = CAMPOS_DO_PROVEDOR[provedorValido] ?? []
   const novo = !editando
+
+  /*
+   * O perfil volta para a tela; o token, não.
+   *
+   * Nome e foto de perfil são justamente o que o destinatário vê — não há
+   * segredo a proteger, e abrir a edição com os campos vazios fazia parecer
+   * que o cadastro tinha sumido. O `apiToken` continua fora daqui.
+   */
+  const guardado: Record<string, string> = editando?.perfil
+    ? {
+        perfilNome: editando.perfil.nome,
+        perfilFoto: editando.perfil.fotoUrl,
+        perfilNome2: editando.perfil.nome2,
+        perfilFoto2: editando.perfil.fotoUrl2,
+      }
+    : {}
 
   return (
     <form action={acao} className="space-y-5">
@@ -179,7 +246,13 @@ export function FormularioDeCanal({
         <Etiqueta className="mb-4 block">Credenciais</Etiqueta>
         <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
           {campos.map((c) => (
-            <CampoDoFormulario key={c.nome} campo={c} novo={novo} />
+            <CampoDoFormulario
+              key={c.nome}
+              campo={c}
+              novo={novo}
+              valorInicial={guardado[c.nome]}
+              daPlataforma={daPlataforma}
+            />
           ))}
         </div>
 

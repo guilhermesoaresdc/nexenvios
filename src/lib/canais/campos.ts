@@ -15,7 +15,7 @@ import { TAMANHO_MAXIMO, TAMANHO_MINIMO } from '@/lib/channels/nome-perfil'
 export type CampoDoProvedor = {
   nome: string
   rotulo: string
-  tipo?: 'texto' | 'senha' | 'url' | 'area' | 'selecao'
+  tipo?: 'texto' | 'senha' | 'url' | 'area' | 'selecao' | 'imagem'
   opcoes?: { valor: string; rotulo: string }[]
   dica?: string
   exemplo?: string
@@ -155,8 +155,8 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
     {
       nome: 'perfilFoto',
       rotulo: 'Perfil padrão — foto',
-      tipo: 'url',
-      dica: 'Quadrada, no mínimo 192×192, até 5 MB.',
+      tipo: 'imagem',
+      dica: 'Envie do computador ou cole um link. Quadrada, no mínimo 192×192, até 5 MB.',
       exemplo: 'https://seusite.com.br/avatar.png',
     },
     {
@@ -168,7 +168,7 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
     {
       nome: 'perfilFoto2',
       rotulo: 'Perfil reserva — foto',
-      tipo: 'url',
+      tipo: 'imagem',
       dica: 'Mesmas regras da principal, e precisa ser uma imagem diferente.',
       exemplo: 'https://seusite.com.br/avatar-2.png',
     },
