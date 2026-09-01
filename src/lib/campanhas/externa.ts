@@ -172,7 +172,14 @@ export async function entregarAoMonitor(dados: DadosDaSubmissao): Promise<Result
     base: { nomeArquivo: `base-${dados.campanhaId}.csv`, conteudo: base.csv },
     mediaUrl: dados.mediaUrl ?? null,
     referencia: dados.campanhaId,
-    dataCampanha: dados.agendarPara ?? null,
+    /*
+     * Sem agendamento, vai a data de HOJE — e não campo nenhum.
+     *
+     * Omitir `data_campanha` faz o Monitor assumir D+1 (§2.0 da documentação
+     * deles). Quem escolheu "Agora" na nossa tela não pediu amanhã, e a
+     * diferença só apareceria no dia seguinte, quando a campanha não saísse.
+     */
+    dataCampanha: dados.agendarPara ?? new Date(),
     politica: dados.politica ?? null,
   }
 

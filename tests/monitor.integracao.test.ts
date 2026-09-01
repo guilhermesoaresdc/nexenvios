@@ -242,6 +242,22 @@ cenario('Monitor de Envios', () => {
     expect(linhas).toHaveLength(0)
   })
 
+  it('sem agendamento, manda a data de HOJE — não deixa em branco', () => {
+    /*
+     * Omitir `data_campanha` faz o Monitor assumir D+1 (§2.0). Quem escolheu
+     * "Agora" não pediu amanhã, e a diferença só apareceria no dia seguinte,
+     * quando a campanha não saísse.
+     */
+    const hoje = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(new Date())
+
+    expect(estado.recebeuUpload?.data_campanha).toBe(hoje)
+  })
+
   it('manda os dois perfis e a base com um número por linha', () => {
     expect(estado.recebeuUpload?.perfil_nome).toBe('Moveis Silva')
     expect(estado.recebeuUpload?.perfil_nome_2).toBe('Silva Moveis')

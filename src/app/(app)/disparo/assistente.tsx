@@ -1045,6 +1045,8 @@ export function Assistente({
                   <Aviso tom="info" titulo="O ritmo aqui é da plataforma deles">
                     O Monitor de Envios recebe a campanha inteira e entrega no ritmo e na janela que
                     eles definem. Não adianta escolher aqui — por isso esses controles não aparecem.
+                    A data que você marcar é a data PLANEJADA da campanha; a saída depende da fila de
+                    aprovação deles.
                   </Aviso>
                 ) : null}
 
@@ -1321,7 +1323,13 @@ export function Assistente({
                   <LinhaResumo rotulo="Saldo depois" valor={moeda(saldoAgora - custo)} />
                   <LinhaResumo
                     rotulo="Começa"
-                    valor={quando === 'agora' ? 'Assim que ficar pronto' : agendarEm.replace('T', ' às ') || '—'}
+                    valor={
+                      quando === 'agora'
+                        ? peloMonitor
+                          ? `Hoje (${hoje}), assim que aprovarem`
+                          : 'Assim que ficar pronto'
+                        : agendarEm.replace('T', ' às ') || '—'
+                    }
                   />
                 </dl>
 
