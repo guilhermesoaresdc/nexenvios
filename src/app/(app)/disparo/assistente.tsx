@@ -878,13 +878,6 @@ export function Assistente({
                 ) : null}
               </div>
 
-              <Previa
-                canal={canal}
-                corpo={corpo}
-                mediaUrl={mediaUrl}
-                eleitoral={eleitoral}
-                frase={frase}
-              />
             </div>
           </Pad>
         ) : null}
@@ -1246,8 +1239,34 @@ export function Assistente({
         </div>
       </div>
 
-      {/* ───────────────────────────────────────────── resumo fixo */}
-      <aside className="lg:sticky lg:top-6">
+      {/* ──────────────────────────────── prévia e resumo, fixos */}
+      {/*
+        Rola por dentro quando não cabe.
+        `sticky` sem teto de altura gruda a coluna no topo e deixa o rodapé —
+        o custo estimado — fora da tela em notebook, sem jeito de alcançar:
+        a página não rola porque a coluna está fixa, e a coluna não rola
+        porque não tem overflow próprio.
+      */}
+      <aside className="space-y-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:pr-1">
+        {/*
+          A prévia acompanha a escrita em vez de ficar embaixo dela.
+          Enquanto ela morava no fim do passo 3, conferir o que estava sendo
+          escrito exigia rolar para longe do campo — e quem rolava para
+          escrever não via mais o que ia sair.
+        */}
+        {passo >= 3 ? (
+          <Previa
+            canal={canal}
+            corpo={corpo}
+            mediaUrl={mediaUrl}
+            eleitoral={eleitoral}
+            frase={frase}
+            perfilNome={perfilNome}
+            perfilFoto={perfilFoto}
+            agendadoPara={quando === 'agendar' ? agendarEm : undefined}
+          />
+        ) : null}
+
         <Pad>
           <PadTitulo titulo="Resumo" />
           <div className="px-5 py-4">
