@@ -709,16 +709,22 @@ cenario('Monitor de Envios', () => {
     expect(estado.tokenNoCabecalho).toBe('token-de-teste')
   })
 
-  it('campanha que o Monitor não acha desiste, e NÃO culpa o canal', async () => {
+  it('campanha aceita por eles NUNCA vira falha por erro de leitura', async () => {
     const { sincronizarExternas } = await import('@/lib/campanhas/externa')
     const { db } = await import('@/db')
     const esquema = await import('@/db/schema')
 
     /*
-     * Aconteceu em produção: uma campanha aceita pelo Monitor passou a
-     * responder "Campanha não encontrada." a cada minuto, para sempre. O canal
-     * ficou marcado como quebrado com a credencial perfeita, e cada minuto
-     * gastava uma requisição do teto deles.
+     * Aconteceu em produção, duas vezes: campanha ACEITA pelo Monitor — com
+     * código de acompanhamento e status "aguardando" do lado deles — cujo
+     * `status_aprovacao.php` respondia "Campanha não encontrada." A primeira
+     * versão desta regra desistia depois de cinco tentativas e marcava a
+     * campanha como `falhou`.
+     *
+     * Isso é pior do que o problema que resolvia: a tela passa a afirmar que
+     * não saiu algo que pode estar saindo naquele instante, a campanha some do
+     * acompanhamento e nada é cobrado. Não conseguir LER o status é problema
+     * nosso de leitura, não notícia sobre a campanha.
      */
     const criada = await (await import('@/lib/campanhas/servico')).criarCampanha(orgId, null, {
       nome: 'Some do lado deles',
@@ -750,8 +756,11 @@ cenario('Monitor de Envios', () => {
       .select()
       .from(esquema.campaigns)
       .where(eq(esquema.campaigns.id, criada.campanhaId))
-    expect(campanha!.status).toBe('falhou')
-    expect(campanha!.externalReason).toMatch(/não encontrada/i)
+
+    // Continua viva, com o aviso escrito — e NÃO marcada como falha.
+    expect(campanha!.status).toBe('aguardando')
+    expect(campanha!.externalReason).toMatch(/[Ss]em acompanhamento/)
+    expect(campanha!.externalSyncFailures).toBeGreaterThan(0)
 
     // E o canal continua limpo: o problema era da campanha, não da credencial.
     const [canal] = await db

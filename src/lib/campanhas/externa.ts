@@ -47,16 +47,20 @@ const POR_BATIDA = 5
 const INTERVALO_SEGUNDOS = 60
 
 /**
- * Quantas falhas seguidas antes de desistir de acompanhar a campanha.
+ * Quanto o intervalo cresce quando a consulta falha.
  *
- * Erro definitivo (código que não existe, campanha de outra conta) não melhora
- * com o tempo: cinco minutos bastam para descartar uma coincidência. Já uma
- * falha de rede ou um 429 passam — por isso o outro teto é de quatro horas,
- * longo o bastante para atravessar uma instabilidade e curto o bastante para
- * não gastar o teto de requisições deles por dias.
+ * **Campanha aceita por eles NUNCA é dada como falha aqui.** A primeira versão
+ * disto desistia depois de cinco "Campanha não encontrada" e marcava a
+ * campanha como `falhou` — e marcou duas que estavam VIVAS na fila de
+ * aprovação deles, com código de acompanhamento e tudo. Dizer que falhou o que
+ * pode estar saindo é a pior mentira que esta tela pode contar: some do
+ * acompanhamento, não cobra, e o cliente descobre pelo destinatário.
+ *
+ * O que a falha faz é espaçar a consulta, não encerrar a campanha. Até 15
+ * minutos entre tentativas — sobra folga no teto deles (200/hora por IP) e a
+ * campanha volta a ser acompanhada sozinha assim que o outro lado responder.
  */
-const DESISTE_APOS_PERMANENTE = 5
-const DESISTE_APOS = 240
+const ESPACAMENTO_MAXIMO = 15
 
 export const PROVEDOR = 'monitor_envios'
 
@@ -278,7 +282,14 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
         notInArray(campaigns.status, ['concluida', 'cancelada', 'falhou']),
         or(
           raw`${campaigns.externalSyncedAt} IS NULL`,
-          raw`${campaigns.externalSyncedAt} < now() - interval '${raw.raw(String(INTERVALO_SEGUNDOS))} seconds'`,
+          /*
+           * O intervalo cresce com as falhas seguidas desta campanha: 1
+           * minuto quando tudo vai bem, até 15 quando o outro lado não
+           * responde. Sem isso, uma campanha que eles não conseguem localizar
+           * gastava uma requisição por minuto, para sempre.
+           */
+          raw`${campaigns.externalSyncedAt} < now() - (interval '${raw.raw(String(INTERVALO_SEGUNDOS))} seconds'
+                * greatest(1, least(${campaigns.externalSyncFailures}, ${raw.raw(String(ESPACAMENTO_MAXIMO))})))`,
         ),
       ),
     )
@@ -312,9 +323,10 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
     try {
       await sincronizarUma(campanha, credencial, resumo)
       if (campanha.falhas > 0) {
+        // Voltou a responder: o aviso de "sem acompanhamento" sai junto.
         await db
           .update(campaigns)
-          .set({ externalSyncFailures: 0 })
+          .set({ externalSyncFailures: 0, externalReason: null })
           .where(eq(campaigns.id, campanha.id))
       }
       /*
@@ -347,28 +359,21 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
       if (!daCampanha && campanha.configId) await registrarFalhaDoCanal(campanha.configId)
 
       /*
-       * E em algum ponto se desiste, com o motivo escrito.
+       * O STATUS NÃO MUDA. Só o motivo e o contador.
        *
-       * Sem isto a campanha ficava para sempre na fila de sincronização —
-       * ela só sai de lá quando muda de status, e o erro impedia justamente
-       * isso. Uma requisição por minuto, para sempre, contra o teto de 200 por
-       * hora deles.
+       * A campanha já foi aceita por eles — tem código de acompanhamento. Não
+       * conseguir ler o status é problema NOSSO de leitura, não notícia sobre
+       * a campanha, e transformar isso em "falhou" faria a tela afirmar que
+       * não saiu algo que pode estar saindo agora.
        */
-      const desistir = daCampanha ? falhas >= DESISTE_APOS_PERMANENTE : falhas >= DESISTE_APOS
       await db
         .update(campaigns)
-        .set(
-          desistir
-            ? {
-                status: 'falhou',
-                externalSyncedAt: new Date(),
-                externalSyncFailures: falhas,
-                externalReason: `Não foi possível acompanhar esta campanha no Monitor de Envios: ${motivo}`,
-                finishedAt: new Date(),
-                updatedAt: new Date(),
-              }
-            : { externalSyncedAt: new Date(), externalSyncFailures: falhas },
-        )
+        .set({
+          externalSyncedAt: new Date(),
+          externalSyncFailures: falhas,
+          externalReason: `Sem acompanhamento no Monitor de Envios desde ${falhas} tentativa(s): ${motivo}`,
+          updatedAt: new Date(),
+        })
         .where(eq(campaigns.id, campanha.id))
     }
   }
