@@ -323,3 +323,22 @@ describe('montarConfig', () => {
     expect(canalConfigurado(vazio)).toBe(false)
   })
 })
+
+describe('cadastro do Monitor de Envios', () => {
+  it('exige os quatro campos de perfil no CADASTRO, não no disparo', async () => {
+    const { CAMPOS_DO_PROVEDOR } = await import('@/lib/canais/campos')
+    const campos = CAMPOS_DO_PROVEDOR.monitor_envios ?? []
+
+    /*
+     * A API deles exige `perfil_nome` e `foto_perfil` em toda campanha —
+     * inclusive SMS, onde ninguém os vê. Enquanto esses campos eram opcionais
+     * aqui, dava para salvar um canal só com o token e descobrir o problema na
+     * hora de criar o disparo, com a base já montada.
+     */
+    for (const nome of ['apiToken', 'perfilNome', 'perfilFoto', 'perfilNome2', 'perfilFoto2']) {
+      const campo = campos.find((c) => c.nome === nome)
+      expect(campo, `campo ${nome} sumiu do cadastro`).toBeTruthy()
+      expect(campo?.obrigatorio, `campo ${nome} deveria ser obrigatório`).toBe(true)
+    }
+  })
+})

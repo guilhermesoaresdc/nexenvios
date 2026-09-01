@@ -137,6 +137,15 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
       exemplo: 'NEXENVIOS',
     },
   ],
+  /*
+   * Os quatro campos de perfil são OBRIGATÓRIOS aqui, e não na hora do disparo.
+   *
+   * A API deles exige `perfil_nome` e `foto_perfil` em toda campanha —
+   * inclusive SMS, onde ninguém os vê. Deixá-los opcionais no cadastro
+   * permitia salvar um canal pela metade e descobrir isso só ao criar o
+   * disparo, com a base montada. Exigir aqui custa um minuto uma vez; deixar
+   * para depois custa o disparo.
+   */
   monitor_envios: [
     {
       nome: 'apiToken',
@@ -149,6 +158,7 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
     {
       nome: 'perfilNome',
       rotulo: 'Perfil padrão — nome',
+      obrigatorio: true,
       dica: `De ${TAMANHO_MINIMO} a ${TAMANHO_MAXIMO} caracteres. Tem que ser nome comercial: nada de frase, promessa ou termo de aposta.`,
       exemplo: 'Moveis Silva',
     },
@@ -156,12 +166,14 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
       nome: 'perfilFoto',
       rotulo: 'Perfil padrão — foto',
       tipo: 'imagem',
+      obrigatorio: true,
       dica: 'Envie do computador ou cole um link. Quadrada, de 192×192 a 4096×4096, até 5 MB. Exigida em toda campanha — inclusive SMS, onde ninguém a vê.',
       exemplo: 'https://seusite.com.br/avatar.png',
     },
     {
       nome: 'perfilNome2',
       rotulo: 'Perfil reserva — nome',
+      obrigatorio: true,
       dica: 'Obrigatório no Monitor (o comunicado diz 01/09/2026, a documentação da API diz 10/09 — vale a data mais cedo). A equipe deles usa se a Meta reprovar o principal; precisa ser diferente dele.',
       exemplo: 'Silva Moveis',
     },
@@ -169,6 +181,7 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
       nome: 'perfilFoto2',
       rotulo: 'Perfil reserva — foto',
       tipo: 'imagem',
+      obrigatorio: true,
       dica: 'Mesmas regras da principal, e precisa ser uma imagem diferente.',
       exemplo: 'https://seusite.com.br/avatar-2.png',
     },

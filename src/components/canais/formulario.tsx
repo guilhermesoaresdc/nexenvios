@@ -127,6 +127,7 @@ function CampoDeImagemDoFormulario({
         uso="perfil"
         daPlataforma={daPlataforma}
         exemplo={campo.exemplo}
+        obrigatorio={campo.obrigatorio}
       />
     </Campo>
   )
