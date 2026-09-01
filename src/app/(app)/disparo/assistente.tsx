@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useTransition,
   type ReactNode,
 } from 'react'
 import Link from 'next/link'
@@ -39,8 +40,9 @@ import {
 } from '@/components/ui/base'
 import { CampoDeImagem } from '@/components/ui/imagem'
 import { conferirNomeDePerfil, TAMANHO_MAXIMO } from '@/lib/channels/nome-perfil'
-import { criarDisparo, enviarTeste, orcarDisparo } from './acoes'
+import { apagarRascunho, criarDisparo, enviarTeste, orcarDisparo, salvarRascunho } from './acoes'
 import { Previa, textoQueSai } from './previa'
+import type { Rascunho } from '@/lib/campanhas/rascunho-forma'
 
 /**
  * O assistente de disparo.
@@ -242,6 +244,44 @@ function CaixaDeFonte({
   )
 }
 
+/**
+ * "Rascunho salvo", e o botão de jogar fora.
+ *
+ * Discreto de propósito: o autosave é uma promessa que só precisa ser visível
+ * o bastante para a pessoa confiar nela e fechar a aba sem medo. A hora vem do
+ * relógio de quem está olhando — é ele que a pessoa usa para julgar se o que
+ * ela acabou de escrever entrou.
+ */
+function EstadoDoRascunho({
+  salvoEm,
+  descartar,
+  descartando,
+}: {
+  salvoEm: string | null
+  descartar: () => void
+  descartando: boolean
+}) {
+  if (!salvoEm) return null
+  const hora = new Date(salvoEm).toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  return (
+    <span className="flex items-center gap-2 text-[.76rem] text-muted">
+      <span className="h-1.5 w-1.5 rounded-full bg-blue" aria-hidden />
+      Rascunho salvo às {hora}
+      <button
+        type="button"
+        onClick={descartar}
+        disabled={descartando}
+        className="font-semibold text-blue hover:underline disabled:opacity-50"
+      >
+        Descartar
+      </button>
+    </span>
+  )
+}
+
 function LinhaResumo({ rotulo, valor }: { rotulo: ReactNode; valor: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5">
@@ -261,6 +301,8 @@ export function Assistente({
   saldo,
   frase,
   hoje,
+  rascunho,
+  rascunhoSalvoEm,
 }: {
   canais: CanalDisponivel[]
   listas: ListaDisponivel[]
@@ -269,36 +311,47 @@ export function Assistente({
   saldo: number
   frase: string
   hoje: string
+  /** O que ficou da última vez. Nulo quando não há nada guardado. */
+  rascunho: Rascunho | null
+  rascunhoSalvoEm: string | null
 }) {
-  const [passo, setPasso] = useState(1)
+  /*
+   * O rascunho entra como valor INICIAL, não por efeito.
+   *
+   * Restaurar dentro de um `useEffect` faria a tela nascer vazia e se
+   * corrigir depois de montar: um pisca em cada campo, e — pior — o autosave
+   * disparando com o estado vazio antes de o efeito rodar, apagando o próprio
+   * rascunho que ia restaurar.
+   */
+  const [passo, setPasso] = useState(rascunho?.passo ?? 1)
 
-  const [configId, setConfigId] = useState<string | null>(null)
-  const [listasEscolhidas, setListasEscolhidas] = useState<string[]>([])
-  const [etiquetasEscolhidas, setEtiquetasEscolhidas] = useState<string[]>([])
-  const [todaABase, setTodaABase] = useState(false)
+  const [configId, setConfigId] = useState<string | null>(rascunho?.configId ?? null)
+  const [listasEscolhidas, setListasEscolhidas] = useState<string[]>(rascunho?.listas ?? [])
+  const [etiquetasEscolhidas, setEtiquetasEscolhidas] = useState<string[]>(rascunho?.etiquetas ?? [])
+  const [todaABase, setTodaABase] = useState(rascunho?.todaABase ?? false)
 
-  const [nome, setNome] = useState('')
-  const [corpo, setCorpo] = useState('')
-  const [mediaUrl, setMediaUrl] = useState('')
-  const [eleitoral, setEleitoral] = useState(false)
+  const [nome, setNome] = useState(rascunho?.nome ?? '')
+  const [corpo, setCorpo] = useState(rascunho?.corpo ?? '')
+  const [mediaUrl, setMediaUrl] = useState(rascunho?.mediaUrl ?? '')
+  const [eleitoral, setEleitoral] = useState(rascunho?.eleitoral ?? false)
 
-  const [ritmo, setRitmo] = useState(60)
-  const [abreAs, setAbreAs] = useState(8)
-  const [fechaAs, setFechaAs] = useState(21)
-  const [quando, setQuando] = useState<'agora' | 'agendar'>('agora')
-  const [agendarEm, setAgendarEm] = useState('')
+  const [ritmo, setRitmo] = useState(rascunho?.ritmo ?? 60)
+  const [abreAs, setAbreAs] = useState(rascunho?.abreAs ?? 8)
+  const [fechaAs, setFechaAs] = useState(rascunho?.fechaAs ?? 21)
+  const [quando, setQuando] = useState<'agora' | 'agendar'>(rascunho?.quando ?? 'agora')
+  const [agendarEm, setAgendarEm] = useState(rascunho?.agendarEm ?? '')
 
   const [numeroDeTeste, setNumeroDeTeste] = useState('')
 
   // Só o Monitor de Envios usa: lá o perfil viaja junto da campanha.
-  const [perfilNome, setPerfilNome] = useState('')
-  const [perfilFoto, setPerfilFoto] = useState('')
-  const [perfilNome2, setPerfilNome2] = useState('')
-  const [perfilFoto2, setPerfilFoto2] = useState('')
+  const [perfilNome, setPerfilNome] = useState(rascunho?.perfilNome ?? '')
+  const [perfilFoto, setPerfilFoto] = useState(rascunho?.perfilFoto ?? '')
+  const [perfilNome2, setPerfilNome2] = useState(rascunho?.perfilNome2 ?? '')
+  const [perfilFoto2, setPerfilFoto2] = useState(rascunho?.perfilFoto2 ?? '')
 
   // Exigidos pelo Monitor quando a campanha é declarada política.
-  const [politicaDocumento, setPoliticaDocumento] = useState('')
-  const [politicaPartido, setPoliticaPartido] = useState('')
+  const [politicaDocumento, setPoliticaDocumento] = useState(rascunho?.politicaDocumento ?? '')
+  const [politicaPartido, setPoliticaPartido] = useState(rascunho?.politicaPartido ?? '')
 
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null)
   const [orcando, setOrcando] = useState(false)
@@ -306,6 +359,10 @@ export function Assistente({
 
   const areaRef = useRef<HTMLTextAreaElement | null>(null)
   const pedido = useRef(0)
+
+  const [salvoEm, setSalvoEm] = useState<string | null>(rascunhoSalvoEm)
+  const [retomado, setRetomado] = useState(Boolean(rascunho))
+  const [descartando, iniciarDescarte] = useTransition()
 
   const [estadoDoTeste, testar, testando] = useActionState(enviarTeste, undefined)
   const [estadoDaCriacao, criar, criando] = useActionState(criarDisparo, undefined)
@@ -386,6 +443,54 @@ export function Assistente({
 
   const nomeSugerido = `${canal ? CANAL_CURTO[canal] : 'Disparo'} · ${hoje}`
   const nomeFinal = nome.trim() || nomeSugerido
+
+  /*
+   * O rascunho, salvo sozinho.
+   *
+   * Meio segundo depois da última tecla — cedo o bastante para que fechar a
+   * aba sem querer não custe nada, espaçado o bastante para não mandar uma
+   * requisição por caractere. `JSON.stringify` como dependência em vez do
+   * objeto: o literal é recriado a cada render e um `useEffect` com ele na
+   * lista rodaria para sempre.
+   */
+  const paraGuardar = JSON.stringify({
+    passo,
+    configId,
+    listas: listasEscolhidas,
+    etiquetas: etiquetasEscolhidas,
+    todaABase,
+    nome,
+    corpo,
+    mediaUrl,
+    eleitoral,
+    ritmo,
+    abreAs,
+    fechaAs,
+    quando,
+    agendarEm,
+    perfilNome,
+    perfilFoto,
+    perfilNome2,
+    perfilFoto2,
+    politicaDocumento,
+    politicaPartido,
+  })
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      /*
+       * Só carimba a hora se o servidor gravou MESMO.
+       *
+       * Rascunho em branco não é guardado — e dizer "salvo" para ele fazia a
+       * tela prometer, logo depois de descartar, que havia algo guardado que
+       * não havia.
+       */
+      void salvarRascunho(JSON.parse(paraGuardar) as Rascunho, canal).then((guardou) => {
+        setSalvoEm(guardou ? new Date().toISOString() : null)
+      })
+    }, 500)
+    return () => clearTimeout(t)
+  }, [paraGuardar, canal])
 
   const podeIrPara2 = Boolean(canalEscolhido)
   const podeIrPara3 = podeIrPara2 && fontes.length > 0
@@ -546,7 +651,39 @@ export function Assistente({
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="min-w-0">
-        <Indicador passo={passo} maximo={maximo} ir={setPasso} />
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+          <Indicador passo={passo} maximo={maximo} ir={setPasso} />
+          <EstadoDoRascunho
+            salvoEm={salvoEm}
+            descartar={() => {
+              if (!confirm('Descartar este rascunho e começar do zero?')) return
+              iniciarDescarte(async () => {
+                await apagarRascunho()
+                // Recarrega em vez de zerar campo a campo: a página já nasce
+                // do rascunho, então basta pedi-la de novo sem ele.
+                window.location.reload()
+              })
+            }}
+            descartando={descartando}
+          />
+        </div>
+
+        {retomado ? (
+          <Aviso tom="ok" className="mb-4">
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                Retomamos o rascunho de onde você parou. Nada foi enviado — confira antes de criar.
+              </span>
+              <button
+                type="button"
+                onClick={() => setRetomado(false)}
+                className="shrink-0 text-[.78rem] font-semibold underline"
+              >
+                Entendi
+              </button>
+            </span>
+          </Aviso>
+        ) : null}
 
         {/* ─────────────────────────────────────── passo 1: canal */}
         {passo === 1 ? (

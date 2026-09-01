@@ -4,6 +4,7 @@ import { etiquetasEmUso, listarListas, resumoDaBase } from '@/db/queries/contato
 import type { Channel } from '@/db/schema/enums'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { FRASE_ELEITORAL, precoDoCanal } from '@/lib/campanhas/servico'
+import { lerRascunho } from '@/lib/campanhas/rascunho'
 import { data, moeda } from '@/lib/ui'
 import { Titulo } from '@/components/shell/casca'
 import { IcCanais } from '@/components/shell/icones'
@@ -11,15 +12,18 @@ import { BotaoLink, Chip, Pad, Vazio } from '@/components/ui/base'
 import { Assistente, type CanalDisponivel } from './assistente'
 
 export const metadata: Metadata = { title: 'Novo disparo' }
+// O rascunho é de quem está logado: nada aqui pode virar página estática.
+export const dynamic = 'force-dynamic'
 
 export default async function NovoDisparo() {
   const usuario = await exigirUsuario()
 
-  const [canais, listas, etiquetas, base] = await Promise.all([
+  const [canais, listas, etiquetas, base, rascunho] = await Promise.all([
     canaisDaOrg(usuario.orgId),
     listarListas(usuario.orgId),
     etiquetasEmUso(usuario.orgId),
     resumoDaBase(usuario.orgId),
+    lerRascunho(usuario.orgId, usuario.id),
   ])
 
   // Um preço por canal, não por configuração: dois cartões do mesmo canal
@@ -72,6 +76,8 @@ export default async function NovoDisparo() {
           saldo={Number(usuario.credits)}
           frase={FRASE_ELEITORAL}
           hoje={data(new Date())}
+          rascunho={rascunho?.rascunho ?? null}
+          rascunhoSalvoEm={rascunho ? rascunho.salvoEm.toISOString() : null}
         />
       )}
     </>

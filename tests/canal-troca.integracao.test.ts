@@ -1,8 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
-import { channelConfigs, contacts, organizations, users } from '@/db/schema'
-import { criarCampanha } from '@/lib/campanhas/servico'
+import { campaigns, channelConfigs, contacts, dispatches, organizations, users } from '@/db/schema'
 import { salvarCanal } from '@/lib/canais/servico'
 
 /**
@@ -51,13 +50,10 @@ cenario('troca de provedor', () => {
       .returning({ id: users.id })
     autorId = autor!.id
 
-    await db.insert(contacts).values(
-      Array.from({ length: 4 }, (_, i) => ({
-        orgId,
-        phone: `5511955000${10 + i}`,
-        name: `Pessoa ${i}`,
-      })),
-    )
+    const [contato] = await db
+      .insert(contacts)
+      .values({ orgId, phone: '5511955000010', name: 'Pessoa' })
+      .returning({ id: contacts.id })
 
     const [canal] = await db
       .insert(channelConfigs)
@@ -65,14 +61,49 @@ cenario('troca de provedor', () => {
       .returning({ id: channelConfigs.id })
     configId = canal!.id
 
-    const criada = await criarCampanha(orgId, autorId, {
-      nome: 'Campanha viva',
-      canal: 'sms',
+    /*
+     * A fila é montada À MÃO, e não por `criarCampanha`.
+     *
+     * `bater()` do motor trabalha a fila INTEIRA do banco, não só a da
+     * organização de quem chamou — e os testes compartilham um banco só. Uma
+     * campanha materializada de verdade aqui vira linha pendente que a batida
+     * do teste do motor pega, e ele passa a medir errado, num arquivo que não
+     * tem nada a ver com este.
+     *
+     * A campanha nasce 'pausada' e já materializada pelo mesmo motivo: nesse
+     * estado o motor não a materializa nem a fecha. O que o guarda conta é
+     * exatamente isto — linha pendente e campanha viva —, então o que está sob
+     * teste continua igual.
+     */
+    const [campanha] = await db
+      .insert(campaigns)
+      .values({
+        orgId,
+        name: 'Campanha viva',
+        channel: 'sms',
+        configId,
+        body: 'Olá!',
+        status: 'pausada',
+        materialized: true,
+        total: 1,
+        pending: 1,
+        unitPrice: '0.05',
+      })
+      .returning({ id: campaigns.id })
+
+    await db.insert(dispatches).values({
+      orgId,
+      campaignId: campanha!.id,
+      contactId: contato!.id,
+      channel: 'sms',
       configId,
-      corpo: 'Olá!',
-      fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
+      toAddress: '5511955000010',
+      body: 'Olá!',
+      status: 'pendente',
+      // Longe no futuro: mesmo que uma batida rode, esta linha não vence.
+      scheduledFor: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      cost: '0.05',
     })
-    expect(criada.ok).toBe(true)
 
     const recusa = await salvarCanal({
       orgId,

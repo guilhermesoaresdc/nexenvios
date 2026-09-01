@@ -8,6 +8,11 @@ import { channelEnum } from '@/db/schema/enums'
 import { exigirEscrita, exigirUsuario, type UsuarioAutenticado } from '@/lib/auth/atual'
 import { conferirFontes } from '@/lib/campanhas/publico'
 import { criarCampanha, orcar, textoFinal, type Orcamento } from '@/lib/campanhas/servico'
+import {
+  descartarRascunho,
+  guardarRascunho,
+  type Rascunho,
+} from '@/lib/campanhas/rascunho'
 import { ERRO_LABEL } from '@/lib/channels'
 import { enviarAgora } from '@/lib/delivery/motor'
 import { compilarMensagem } from '@/lib/mensagem'
@@ -280,7 +285,51 @@ export async function criarDisparo(
 
   if (!resultado.ok) return { erro: resultado.erro }
 
+  /*
+   * A campanha nasceu: o rascunho já cumpriu o papel.
+   *
+   * Fora do try de nada — se apagar falhar, a campanha continua criada e o
+   * único efeito é a próxima visita oferecer para retomar algo que já virou
+   * campanha. Perder a campanha por causa de uma limpeza seria muito pior.
+   */
+  await descartarRascunho(usuario.orgId, usuario.id).catch(() => {})
+
   revalidatePath('/campanhas')
   revalidatePath('/painel')
   redirect(`/campanhas/${resultado.campanhaId}`)
+}
+
+/**
+ * Salva o rascunho do assistente.
+ *
+ * Chamada a cada pausa na digitação. Nunca devolve erro para a tela: um
+ * autosave que falha não pode interromper quem está escrevendo, e a pessoa
+ * não pediu para salvar — o pior caso aceitável é o rascunho ficar um pouco
+ * atrasado, não um aviso vermelho no meio do texto.
+ */
+export async function salvarRascunho(
+  rascunho: Rascunho,
+  canal: string | null,
+): Promise<boolean> {
+  const usuario = await exigirUsuario()
+  if (usuario.isLeitor) return false
+
+  try {
+    return await guardarRascunho({
+      orgId: usuario.orgId,
+      autorId: usuario.id,
+      canal,
+      rascunho,
+    })
+  } catch {
+    // Sem barulho, de propósito. Ver o comentário acima.
+    return false
+  }
+}
+
+/** Joga fora o rascunho e começa do zero. */
+export async function apagarRascunho(): Promise<void> {
+  const usuario = await exigirUsuario()
+  if (usuario.isLeitor) return
+  await descartarRascunho(usuario.orgId, usuario.id)
 }

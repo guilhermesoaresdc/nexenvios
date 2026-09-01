@@ -373,8 +373,11 @@ export const savedDispatches = pgTable('saved_dispatches', {
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  channel: channelEnum('channel').notNull(),
+  /** Nulo no rascunho: ele começa antes de a pessoa escolher o canal. */
+  channel: channelEnum('channel'),
   payload: jsonb('payload').notNull(),
+  /** Rascunho salvo sozinho pelo assistente — um por pessoa. */
+  auto: boolean('auto').notNull().default(false),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: agora(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
