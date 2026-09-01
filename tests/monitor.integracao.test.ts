@@ -322,6 +322,33 @@ cenario('Monitor de Envios', () => {
     expect(lancamentos).toHaveLength(2)
   })
 
+  it('a batida do motor NÃO fecha a campanha delegada que acabou de começar', async () => {
+    const { bater } = await import('@/lib/delivery/motor')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    /*
+     * A armadilha: campanha delegada não tem linha em `dispatches`, então
+     * `fecharConcluidas` via "nenhuma pendente" e a dava por terminada na
+     * mesma batida em que o Monitor a aprovava. Como a sincronização pula
+     * campanha concluída, o acompanhamento morria ali — progresso congelado
+     * e crédito não cobrado, com as mensagens saindo do outro lado.
+     */
+    const [antes] = await db
+      .select()
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, campanhaId))
+    expect(antes!.status).toBe('enviando')
+
+    await bater(10)
+
+    const [depois] = await db
+      .select()
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, campanhaId))
+    expect(depois!.status).toBe('enviando')
+  })
+
   it('não deixa pausar nem cancelar o que já é deles', async () => {
     const servico = await import('@/lib/campanhas/servico')
     expect(await servico.pausar(orgId, campanhaId)).toBe(false)

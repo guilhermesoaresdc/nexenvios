@@ -83,8 +83,12 @@ export type StatusDeAprovacao = {
 
 export type ProgressoDaCampanha = {
   progresso: number
+  /** Saíram mas ainda sem confirmação de recebimento. */
   enviadas: number
+  /** Confirmadas como recebidas. É um conjunto DISJUNTO de `enviadas`. */
   recebidas: number
+  /** enviadas + recebidas — o que de fato já foi processado. É o que se cobra. */
+  processadas: number
 }
 
 export type Resposta = {
@@ -335,12 +339,32 @@ export async function progressoDaCampanha(
     progresso?: number | string
     quantidadeEnviada?: number | string
     quantidadeRecebida?: number | string
+    quantidadeTotalEnviada?: number | string
   } | null
+
+  const enviadas = Number(dados?.quantidadeEnviada ?? 0)
+  const recebidas = Number(dados?.quantidadeRecebida ?? 0)
+
+  /*
+   * `quantidadeEnviada` e `quantidadeRecebida` são DISJUNTAS.
+   *
+   * A documentação define `quantidadeTotalEnviada` como "soma de enviada +
+   * recebida", e o exemplo deles fecha: 433 + 354 = 787. Ou seja, a mensagem
+   * SAI de "enviada" quando o recebimento é confirmado.
+   *
+   * Isso importa para a cobrança: usar só `quantidadeEnviada` cobraria a menos
+   * e, pior, o número pode DIMINUIR conforme as confirmações chegam — o que
+   * faria o cálculo do que falta cobrar virar negativo e travar o débito.
+   */
+  const somadas = enviadas + recebidas
+  const total = Number(dados?.quantidadeTotalEnviada ?? somadas)
 
   return {
     progresso: Number(dados?.progresso ?? 0),
-    enviadas: Number(dados?.quantidadeEnviada ?? 0),
-    recebidas: Number(dados?.quantidadeRecebida ?? 0),
+    enviadas,
+    recebidas,
+    // Confia no total deles quando vem; senão soma. Nunca menos que a soma.
+    processadas: Math.max(total, somadas),
   }
 }
 

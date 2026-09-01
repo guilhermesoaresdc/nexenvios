@@ -5,11 +5,12 @@ import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/db'
 import { channelConfigs, whatsappInstances } from '@/db/schema'
-import { channelEnum } from '@/db/schema/enums'
+import { channelEnum, entregaACampanhaInteira } from '@/db/schema/enums'
 import { exigirAdmin, exigirEscrita } from '@/lib/auth/atual'
 import { canalUtilizavel, removerCanal, salvarCanal } from '@/lib/canais/servico'
 import { lerSegredo } from '@/lib/cripto'
 import { enviarAgora } from '@/lib/delivery/motor'
+import { conferirCredencialDoMonitor } from '@/lib/campanhas/externa'
 import { ERRO_LABEL, type CodigoErro } from '@/lib/channels/tipos'
 import {
   apagarInstancia,
@@ -101,6 +102,18 @@ export async function testarCanal(_anterior: Estado, form: FormData): Promise<Es
   // cliente, mesmo com o id certo em mãos.
   const canal = await canalUtilizavel(usuario.orgId, dados.data.configId)
   if (!canal) return { erro: 'Canal não encontrado.' }
+
+  /*
+   * Provedor que entrega a campanha inteira não tem mensagem avulsa para
+   * testar. Deixar cair em `enviarAgora` devolvia "canal sem configuração" —
+   * uma acusação falsa contra a credencial, no mesmo cartão que diz
+   * "credencial salva".
+   */
+  if (entregaACampanhaInteira(canal.provider)) {
+    return {
+      erro: 'O Monitor de Envios não recebe mensagem avulsa — só campanha inteira. Use “Conferir credencial” aqui do lado para saber se o token está certo.',
+    }
+  }
 
   const r = await enviarAgora({
     orgId: usuario.orgId,
@@ -296,4 +309,29 @@ export async function removerNumero(instanciaId: string): Promise<void> {
 
   await db.delete(whatsappInstances).where(eq(whatsappInstances.id, inst.id))
   revalidatePath('/canais')
+}
+
+/**
+ * Confere a credencial do Monitor de Envios consultando o saldo.
+ *
+ * O teste dos outros canais é mandar uma mensagem. Aqui não existe mensagem
+ * avulsa, então o teste é a consulta mais barata que só passa com o token
+ * certo — e ela devolve um número que a pessoa reconhece.
+ */
+export async function conferirCredencial(_anterior: Estado, form: FormData): Promise<Estado> {
+  const usuario = await exigirAdmin()
+  exigirEscrita(usuario)
+
+  const configId = z.string().uuid().safeParse(form.get('configId'))
+  if (!configId.success) return { erro: 'Canal não encontrado.' }
+
+  const canal = await canalUtilizavel(usuario.orgId, configId.data)
+  if (!canal) return { erro: 'Canal não encontrado.' }
+
+  const r = await conferirCredencialDoMonitor(configId.data)
+  if (!r.ok) return { erro: `A credencial não passou: ${r.erro}` }
+
+  return {
+    ok: `Credencial certa. A conta tem ${r.saldo.toLocaleString('pt-BR')} envio(s) de saldo no Monitor.`,
+  }
 }

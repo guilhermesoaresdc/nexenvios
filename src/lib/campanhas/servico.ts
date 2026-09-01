@@ -289,6 +289,23 @@ export async function criarCampanha(
   if (canal.provedor === PROVEDOR_EXTERNO) {
     const perfil = dados.perfil
     if (!perfil) {
+      /*
+       * Marcar como falha ANTES de sair.
+       *
+       * A linha da campanha já existe neste ponto. Voltar sem tocar nela
+       * deixava uma órfã em 'preparando' com `materialized = false` — e o
+       * motor materializa exatamente isso, criando linhas de envio para uma
+       * campanha que devia ser entregue inteira. Seria envio duplicado.
+       */
+      await db
+        .update(campaigns)
+        .set({
+          status: 'falhou',
+          materialized: true,
+          externalReason: 'Faltou o perfil do WhatsApp exigido pelo Monitor de Envios.',
+          updatedAt: new Date(),
+        })
+        .where(eq(campaigns.id, campanha.id))
       return { ok: false, erro: 'O Monitor de Envios exige o perfil que aparece no WhatsApp.' }
     }
 
@@ -312,7 +329,14 @@ export async function criarCampanha(
       // precisa ver o que aconteceu com o disparo que ele mandou criar.
       await db
         .update(campaigns)
-        .set({ status: 'falhou', externalReason: entrega.erro, updatedAt: new Date() })
+        .set({
+          status: 'falhou',
+          // `materialized: true` fecha a porta do motor: sem isso ele
+          // materializaria a campanha que acabou de falhar.
+          materialized: true,
+          externalReason: entrega.erro,
+          updatedAt: new Date(),
+        })
         .where(eq(campaigns.id, campanha.id))
       return { ok: false, erro: entrega.erro }
     }
@@ -365,6 +389,7 @@ export async function materializar(campanhaId: string, teto: number): Promise<nu
   const [campanha] = await db
     .select({
       id: campaigns.id,
+      externalCode: campaigns.externalCode,
       orgId: campaigns.orgId,
       canal: campaigns.channel,
       configId: campaigns.configId,
@@ -390,6 +415,23 @@ export async function materializar(campanhaId: string, teto: number): Promise<nu
   if (!campanha || campanha.materialized) return 0
   // Cancelada no meio da preparação não continua sendo preparada.
   if (campanha.status === 'cancelada') return 0
+
+  /*
+   * Campanha delegada nunca vira linha de envio.
+   *
+   * Quem entrega é a plataforma de fora; materializar aqui criaria uma
+   * segunda entrega da mesma mensagem — o cliente pagando duas vezes e o
+   * destinatário recebendo duas vezes. A trava é redundante de propósito:
+   * os caminhos que gravam a campanha já fecham `materialized`, mas esta é a
+   * porta por onde o estrago entraria se algum deles falhasse.
+   */
+  if (campanha.externalCode) {
+    await db
+      .update(campaigns)
+      .set({ materialized: true, materializeAt: null })
+      .where(eq(campaigns.id, campanhaId))
+    return 0
+  }
 
   const [org] = await db
     .select({ timezone: organizations.timezone })

@@ -60,6 +60,8 @@ export type CanalDisponivel = {
   numeros: number
   daPlataforma: boolean
   instavel: boolean
+  /** O perfil padrão do canal, quando o provedor entrega a campanha inteira. */
+  perfilPadrao: { nome: string; fotoUrl: string; nome2: string; fotoUrl2: string } | null
 }
 
 export type ListaDisponivel = { id: string; nome: string; total: number }
@@ -410,6 +412,21 @@ export function Assistente({
 
   function escolherCanal(c: CanalDisponivel) {
     setConfigId(c.id)
+    /*
+     * Herda o perfil padrão cadastrado no canal.
+     *
+     * Sem isto, os quatro campos de perfil da tela de Canais eram salvos,
+     * cifrados e nunca lidos — a pessoa preenchia lá e redigitava tudo a cada
+     * disparo. Só preenche o que ainda está vazio: um rascunho em andamento
+     * não pode ser sobrescrito por trocar de canal e voltar.
+     */
+    const padrao = c.perfilPadrao
+    if (padrao) {
+      setPerfilNome((atual) => atual || padrao.nome)
+      setPerfilFoto((atual) => atual || padrao.fotoUrl)
+      setPerfilNome2((atual) => atual || padrao.nome2)
+      setPerfilFoto2((atual) => atual || padrao.fotoUrl2)
+    }
     setPasso(2)
   }
 
@@ -916,6 +933,33 @@ export function Assistente({
               </div>
             </Pad>
 
+            {peloMonitor ? (
+              /*
+               * O Monitor não recebe mensagem avulsa. Oferecer "enviar um
+               * teste" aqui dava um botão que sempre falhava com "canal sem
+               * configuração" — acusando a credencial, que está certa.
+               */
+              <Pad>
+                <PadTitulo
+                  titulo="Como testar por aqui"
+                  descricao="O Monitor de Envios não recebe mensagem avulsa — só campanha inteira."
+                />
+                <div className="p-6">
+                  <Aviso tom="info">
+                    Para ver a mensagem chegando, crie um disparo para uma lista pequena com o seu
+                    próprio número. Ele passa pela mesma fila de aprovação de uma campanha de
+                    verdade, então é o teste fiel.
+                    <br />
+                    <br />
+                    Só para saber se o token está certo, use{' '}
+                    <Link href="/canais" className="font-semibold underline">
+                      Canais → Conferir credencial
+                    </Link>
+                    : consulta o saldo da sua conta lá, sem gastar envio.
+                  </Aviso>
+                </div>
+              </Pad>
+            ) : (
             <Pad>
               <PadTitulo
                 titulo="Enviar um teste"
@@ -952,6 +996,7 @@ export function Assistente({
                 ) : null}
               </div>
             </Pad>
+            )}
 
             {peloMonitor ? (
               <Pad>

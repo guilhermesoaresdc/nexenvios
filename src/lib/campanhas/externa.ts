@@ -13,6 +13,8 @@ import {
   type CredencialMonitor,
   type Perfil,
 } from '@/lib/channels/monitor'
+import { pediuParaSair } from './saida'
+import { descadastrar } from './servico'
 import { fatiaDoPublico } from './publico'
 import type { Fonte } from './publico'
 
@@ -244,7 +246,22 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
   for (const campanha of pendentes) {
     if (!campanha.codigo) continue
     const credencial = credencialDe(campanha.credentials)
-    if (!credencial) continue
+    if (!credencial) {
+      /*
+       * Carimba mesmo sem conseguir sincronizar.
+       *
+       * A ordem é `external_synced_at NULLS FIRST`. Pular sem carimbar fazia
+       * a mesma campanha quebrada voltar na frente a cada batida — cinco
+       * delas sem credencial legível bastavam para nenhuma outra campanha
+       * do sistema ser sincronizada de novo.
+       */
+      await db
+        .update(campaigns)
+        .set({ externalSyncedAt: new Date() })
+        .where(eq(campaigns.id, campanha.id))
+      log.warn('campanha delegada sem credencial legível', { campanha: campanha.id })
+      continue
+    }
 
     resumo.conferidas += 1
     try {
@@ -313,8 +330,18 @@ async function sincronizarUma(
   if (campanha.externalStatus !== 'aprovado') resumo.aprovadas += 1
 
   const progresso = await progressoDaCampanha(credencial, codigo)
-  const enviadas = Math.max(0, Math.min(progresso.enviadas, campanha.total || progresso.enviadas))
-  const novas = Math.max(0, enviadas - campanha.billed)
+
+  /*
+   * Cobra sobre o PROCESSADO (enviadas + recebidas), não sobre `enviadas`.
+   *
+   * As duas quantidades são disjuntas do lado deles: a mensagem sai de
+   * "enviada" ao ser confirmada como recebida. Cobrar por `enviadas` cobraria
+   * a menos, e o número encolheria conforme as confirmações chegassem — o
+   * débito travaria porque `processadas - billed` daria negativo.
+   */
+  const teto = campanha.total || progresso.processadas
+  const processadas = Math.max(0, Math.min(progresso.processadas, teto))
+  const novas = Math.max(0, processadas - campanha.billed)
 
   // O crédito sai pelo que andou desde a última conferência. `external_billed`
   // é o que impede a próxima sincronização de cobrar tudo outra vez.
@@ -345,10 +372,13 @@ async function sincronizarUma(
       status: terminou ? 'concluida' : 'enviando',
       externalStatus: 'aprovado',
       externalSyncedAt: new Date(),
-      externalBilled: enviadas,
-      sent: enviadas,
+      externalBilled: processadas,
+      // `sent` é tudo que saiu — o que ainda não foi confirmado MAIS o que já
+      // foi. Somar só `enviadas` faria "enviados" cair quando a entrega fosse
+      // confirmada, que é o oposto do que a palavra quer dizer.
+      sent: processadas,
       delivered: progresso.recebidas,
-      pending: Math.max(0, (campanha.total || enviadas) - enviadas),
+      pending: Math.max(0, teto - processadas),
       startedAt: raw`COALESCE(${campaigns.startedAt}, now())`,
       finishedAt: terminou ? new Date() : null,
       updatedAt: new Date(),
@@ -379,6 +409,19 @@ async function guardarRespostas(
     if (!telefone) continue
     const numero = telefone.startsWith('55') ? telefone : `55${telefone}`
 
+    /*
+     * Quem pediu para sair, sai — inclusive pelo "2".
+     *
+     * A frase de descadastro que o Monitor cola em campanha política manda
+     * responder "2". Se a gente guardasse a resposta e não descadastrasse,
+     * o próximo disparo iria para quem pediu para parar: R$ 100 de multa por
+     * mensagem em campanha eleitoral, além de ser o motivo pelo qual a lei
+     * existe.
+     */
+    if (pediuParaSair(resposta.texto, { aceitaNumero2: true })) {
+      await descadastrar(campanha.orgId, numero, 'respondeu pedindo para sair (Monitor de Envios)')
+    }
+
     // Sem chave única do lado deles, o par telefone + instante é o que
     // impede a mesma resposta de entrar a cada sincronização.
     await sql`
@@ -396,8 +439,24 @@ async function guardarRespostas(
   }
 }
 
-/** O saldo em envios da conta da plataforma no Monitor, para a tela do admin. */
-export async function saldoDoMonitor(configId: string): Promise<number | null> {
+export type ConferenciaDaCredencial =
+  | { ok: true; saldo: number }
+  | { ok: false; erro: string }
+
+/**
+ * Confere a credencial do Monitor consultando o saldo.
+ *
+ * É o teste que faz sentido para este provedor. Os outros canais se testam
+ * mandando uma mensagem; aqui não existe mensagem avulsa — o que existe é uma
+ * consulta barata que só responde com o token certo. Descobrir que o token
+ * está errado aqui custa um GET; descobrir na hora do disparo custa a campanha.
+ *
+ * O erro sobe com a mensagem: "não deu" sem o motivo manda a pessoa adivinhar
+ * entre token errado, conta suspensa e IP fora da whitelist.
+ */
+export async function conferirCredencialDoMonitor(
+  configId: string,
+): Promise<ConferenciaDaCredencial> {
   const [config] = await db
     .select({ credentials: channelConfigs.credentials })
     .from(channelConfigs)
@@ -405,12 +464,17 @@ export async function saldoDoMonitor(configId: string): Promise<number | null> {
     .limit(1)
 
   const credencial = credencialDe(config?.credentials)
-  if (!credencial) return null
+  if (!credencial) {
+    return { ok: false, erro: 'Este canal está sem o token de acesso do Monitor de Envios.' }
+  }
 
   try {
     const { saldoNoMonitor } = await import('@/lib/channels/monitor')
-    return await saldoNoMonitor(credencial)
-  } catch {
-    return null
+    return { ok: true, saldo: await saldoNoMonitor(credencial) }
+  } catch (erro) {
+    return {
+      ok: false,
+      erro: erro instanceof Error ? erro.message : 'o Monitor de Envios não respondeu',
+    }
   }
 }

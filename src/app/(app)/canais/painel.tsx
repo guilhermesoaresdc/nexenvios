@@ -2,12 +2,13 @@
 
 import { useActionState, useState, useTransition } from 'react'
 import { useFormStatus } from 'react-dom'
-import type { Channel, InstanceStatus } from '@/db/schema/enums'
+import { entregaACampanhaInteira, type Channel, type InstanceStatus } from '@/db/schema/enums'
 import {
   ajustarNumero,
   apagarCanal,
   atualizarQr,
   conectarNumero,
+  conferirCredencial,
   conferirNumero,
   guardarCanal,
   removerNumero,
@@ -145,7 +146,11 @@ export function CartaoDoCanal({
         <div className="mt-5 border-t border-line pt-5">
           <FormularioDeCanal acao={acao} estado={estado} editando={canal} />
           <div className="mt-6 border-t border-line pt-5">
-            <Teste configId={canal.id} />
+            {entregaACampanhaInteira(canal.provedor) ? (
+              <ConferirCredencial configId={canal.id} />
+            ) : (
+              <Teste configId={canal.id} />
+            )}
           </div>
         </div>
       ) : null}
@@ -159,6 +164,40 @@ function EnviarTeste() {
     <Botao type="submit" tom="contorno" tamanho="sm" disabled={pending}>
       {pending ? 'Enviando…' : 'Enviar teste'}
     </Botao>
+  )
+}
+
+function Conferindo() {
+  const { pending } = useFormStatus()
+  return (
+    <Botao type="submit" tom="contorno" tamanho="sm" disabled={pending}>
+      {pending ? 'Conferindo…' : 'Conferir credencial'}
+    </Botao>
+  )
+}
+
+/**
+ * O teste possível de um provedor que entrega a campanha inteira.
+ *
+ * Não há mensagem avulsa para mandar. O que prova o token é a consulta de
+ * saldo — barata, e devolve um número que a pessoa reconhece como o dela.
+ */
+function ConferirCredencial({ configId }: { configId: string }) {
+  const [estado, acao] = useActionState(conferirCredencial, undefined)
+
+  return (
+    <form action={acao} className="space-y-3">
+      <input type="hidden" name="configId" value={configId} />
+      <Etiqueta>Conferir a credencial</Etiqueta>
+      {estado?.erro ? <Aviso tom="erro">{estado.erro}</Aviso> : null}
+      {estado?.ok ? <Aviso tom="ok">{estado.ok}</Aviso> : null}
+      <p className="text-[.84rem] leading-relaxed text-muted">
+        Este canal não manda mensagem avulsa — o Monitor de Envios só recebe campanha inteira. Para
+        conferir se o token está certo, consultamos o saldo da conta lá. Para testar o conteúdo,
+        crie um disparo para uma lista pequena com o seu próprio número.
+      </p>
+      <Conferindo />
+    </form>
   )
 }
 

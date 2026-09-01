@@ -125,6 +125,27 @@ A frase de descadastro em campanha eleitoral é **deles**, não nossa: com
 essa resposta é a plataforma deles. Mandar a nossa (`responda SAIR`) ensinaria ao
 destinatário uma palavra que ninguém do outro lado processa.
 
+### Como testar este canal
+
+Não existe "enviar um teste" aqui: o Monitor não recebe mensagem avulsa. O que
+existe são dois testes, e eles respondem perguntas diferentes:
+
+- **Canais → Conferir credencial** — consulta o saldo da conta no Monitor. É a
+  chamada mais barata que só passa com o token certo, e devolve um número que a
+  pessoa reconhece. Serve para saber se a credencial está boa.
+- **Um disparo para uma lista pequena com o seu próprio número** — é o teste
+  fiel: passa pela mesma fila de aprovação de uma campanha de verdade.
+
+A cobrança usa `quantidadeEnviada + quantidadeRecebida`, não `quantidadeEnviada`
+sozinha: os dois conjuntos são disjuntos do lado deles (a mensagem SAI de
+"enviada" ao ser confirmada), e o exemplo da documentação fecha — 433 + 354 =
+787. Cobrar só por `enviadas` cobraria a menos, e o número encolheria conforme
+as confirmações chegassem.
+
+Resposta `2` descadastra. É a palavra que a frase deles manda usar em campanha
+política, e mensagem para quem já pediu para sair custa R$ 100 por mensagem ao
+responsável.
+
 O contrato de cobrança e de estado tem teste em
 `tests/monitor.integracao.test.ts`, contra um servidor falso.
 

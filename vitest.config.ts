@@ -5,9 +5,20 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
-    // O que fala com banco ou rede não roda aqui — estes testes exercitam a
-    // aritmética e as regras puras, que são onde os erros silenciosos moram.
     exclude: ['node_modules/**', '.next/**'],
+    /*
+     * Um arquivo de cada vez.
+     *
+     * Os testes de integração compartilham UM banco, e `bater()` do motor
+     * trabalha na fila inteira, não na organização de quem chamou. Rodando em
+     * paralelo, a batida de um arquivo reserva as linhas do outro e os dois
+     * medem errado — foi exatamente o que aconteceu quando o teste do Monitor
+     * passou a chamar `bater()`.
+     *
+     * Custa uns segundos. Um teste que falha por vizinhança custa mais: manda
+     * procurar bug onde não tem.
+     */
+    fileParallelism: false,
   },
   resolve: {
     alias: {

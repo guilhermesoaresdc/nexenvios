@@ -107,7 +107,13 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
             {campanha.autor ? ` · criada por ${campanha.autor}` : ''} · {quando(campanha.criadaEm)}
           </>
         }
-        acao={<Controles campanhaId={campanha.id} status={campanha.status} />}
+        acao={
+          <Controles
+            campanhaId={campanha.id}
+            status={campanha.status}
+            delegada={Boolean(campanha.externalCode)}
+          />
+        }
       />
 
       <div className="mb-6 flex flex-wrap items-center gap-2">

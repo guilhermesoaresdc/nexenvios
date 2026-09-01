@@ -2,9 +2,9 @@ import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/db'
 import { contacts, creditLedger, dispatches, organizations } from '@/db/schema'
-import { channelEnum } from '@/db/schema/enums'
+import { channelEnum, entregaACampanhaInteira, nomeDoProvedor } from '@/db/schema/enums'
 import { erro, exigirChave } from '@/lib/api/chave'
-import { canalPadrao } from '@/lib/canais/padrao'
+import { canalPadrao, provedorDoCanal } from '@/lib/canais/padrao'
 import { precoDoCanal } from '@/lib/campanhas/servico'
 import { enviarAgora } from '@/lib/delivery/motor'
 import { medirSms } from '@/lib/mensagem'
@@ -60,10 +60,29 @@ export async function POST(req: Request) {
   }
 
   // Sem configId, vale a regra única de escolha de canal.
-  const configId = dados.data.configId ?? (await canalPadrao(orgId, dados.data.canal))
+  const configId =
+    dados.data.configId ??
+    (await canalPadrao(orgId, dados.data.canal, { precisaDeEnvioAvulso: true }))
 
   if (!configId) {
     return erro(`Nenhum canal de ${dados.data.canal} configurado.`, 409, 'sem_canal')
+  }
+
+  /*
+   * Canal que entrega a campanha inteira não tem mensagem avulsa.
+   *
+   * Sem esta conferência o pedido caía em `enviarAgora`, que devolvia 502
+   * "sem_credencial" — acusando a credencial, que está certa. Pior: a escolha
+   * automática podia pegar o Monitor como canal padrão da conta e transformar
+   * toda chamada de /envios num 502 sem explicação.
+   */
+  const provedor = await provedorDoCanal(orgId, configId)
+  if (provedor && entregaACampanhaInteira(provedor)) {
+    return erro(
+      `O canal ${nomeDoProvedor(provedor)} não envia mensagem avulsa — ele recebe a campanha inteira. Use POST /campanhas, ou escolha outro canal com "configId".`,
+      409,
+      'sem_envio_avulso',
+    )
   }
 
   const [org] = await db

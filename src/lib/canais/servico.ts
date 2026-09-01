@@ -2,9 +2,10 @@ import 'server-only'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { db } from '@/db'
 import { auditLog, channelConfigs } from '@/db/schema'
-import type { Channel } from '@/db/schema/enums'
+import { entregaACampanhaInteira, type Channel } from '@/db/schema/enums'
 import { guardarSegredo, lerSegredo } from '@/lib/cripto'
 import { CAMPOS_DO_PROVEDOR } from './campos'
+import { conferirNomeDePerfil } from '@/lib/channels/nome-perfil'
 
 /**
  * Gravar e apagar a configuração de um canal.
@@ -61,6 +62,23 @@ export async function salvarCanal(opcoes: {
     }
 
     if (bruto === '') {
+      /*
+       * Vazio na edição também mantém o que já estava — não só nos segredos.
+       *
+       * O formulário não recebe os valores guardados (a consulta dos canais
+       * devolve só `temCredencial`), então TODO campo chega vazio ao reabrir a
+       * tela. Sem esta linha, abrir o canal do Monitor para trocar o rótulo
+       * apagava os quatro campos de perfil, em silêncio — e o próximo disparo
+       * saía sem o perfil que a pessoa tinha cadastrado.
+       *
+       * O preço é não dar para esvaziar um campo opcional pela tela. É o lado
+       * certo de errar: apagar sem querer custa mais do que não conseguir
+       * apagar.
+       */
+      if (opcoes.configId && anteriores[campo.nome] !== undefined) {
+        credenciais[campo.nome] = anteriores[campo.nome]
+        continue
+      }
       if (campo.padrao) credenciais[campo.nome] = campo.padrao
       continue
     }
@@ -75,6 +93,25 @@ export async function salvarCanal(opcoes: {
   for (const campo of campos) {
     if (campo.obrigatorio && !credenciais[campo.nome]) {
       return { ok: false, erro: `Informe ${campo.rotulo.toLowerCase()}.` }
+    }
+  }
+
+  /*
+   * O nome de perfil passa pela régua da Meta já no cadastro.
+   *
+   * Deixar para conferir só na hora do disparo faria a pessoa cadastrar o
+   * canal, achar que está pronto, e descobrir o problema com a campanha
+   * montada. Aqui custa uma linha.
+   */
+  if (entregaACampanhaInteira(opcoes.provider)) {
+    for (const [chave, rotulo] of [
+      ['perfilNome', 'principal'],
+      ['perfilNome2', 'reserva'],
+    ] as const) {
+      const valor = credenciais[chave]
+      if (typeof valor !== 'string' || !valor) continue
+      const veredito = conferirNomeDePerfil(valor)
+      if (!veredito.ok) return { ok: false, erro: `Perfil ${rotulo} — ${veredito.motivo}` }
     }
   }
 

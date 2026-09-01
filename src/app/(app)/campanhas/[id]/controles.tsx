@@ -31,18 +31,26 @@ const CANCELAVEIS: readonly CampaignStatus[] = [
 export function Controles({
   campanhaId,
   status,
+  delegada = false,
 }: {
   campanhaId: string
   status: CampaignStatus
+  /** Entregue por uma plataforma de fora — não dá para pausar nem cancelar. */
+  delegada?: boolean
 }) {
   const router = useRouter()
   const [pendente, iniciar] = useTransition()
   const [estado, setEstado] = useState<EstadoDoControle | null>(null)
   const [confirmando, setConfirmando] = useState(false)
 
-  const podePausar = PAUSAVEIS.includes(status)
-  const podeRetomar = status === 'pausada'
-  const podeCancelar = CANCELAVEIS.includes(status)
+  /*
+   * Na campanha delegada os três botões sempre terminam em erro: o Monitor de
+   * Envios não expõe pausa nem cancelamento. Mostrar botão que só serve para
+   * recusar é pior do que não mostrar — a pessoa clica achando que parou.
+   */
+  const podePausar = !delegada && PAUSAVEIS.includes(status)
+  const podeRetomar = !delegada && status === 'pausada'
+  const podeCancelar = !delegada && CANCELAVEIS.includes(status)
 
   function rodar(acao: () => Promise<EstadoDoControle>) {
     setConfirmando(false)

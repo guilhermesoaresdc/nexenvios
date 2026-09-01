@@ -4,6 +4,7 @@ import { contacts, dispatches, inboundMessages } from '@/db/schema'
 import type { Channel, DispatchStatus } from '@/db/schema/enums'
 import { donoDoToken } from '@/lib/canais/retorno'
 import { descadastrar } from '@/lib/campanhas/servico'
+import { pediuParaSair } from '@/lib/campanhas/saida'
 import { criarLog } from '@/lib/log'
 import { normalizarTelefone } from '@/lib/telefone'
 
@@ -26,7 +27,6 @@ export const runtime = 'nodejs'
 const log = criarLog('retorno')
 
 /** Palavras que descadastram. Sem acento, em qualquer caixa. */
-const PEDIDOS_DE_SAIDA = ['pare', 'sair', 'stop', 'descadastrar', 'remover', 'cancelar']
 
 type Atualizacao = { providerMessageId: string; status: DispatchStatus }
 
@@ -227,13 +227,7 @@ async function registrarRecebidas(
         .where(eq(dispatches.id, dispatchId))
     }
 
-    const limpo = (r.texto ?? '')
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .trim()
-      .toLowerCase()
-
-    if (norm.ok && PEDIDOS_DE_SAIDA.includes(limpo)) {
+    if (norm.ok && pediuParaSair(r.texto ?? '')) {
       await descadastrar(orgId, telefone, 'respondeu pedindo para sair')
       descadastros += 1
     }

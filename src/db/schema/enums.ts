@@ -109,6 +109,23 @@ export const PROVEDOR_LABEL: Record<string, string> = {
   generico: 'Outro provedor (HTTP)',
 }
 
+/**
+ * Provedores que entregam a CAMPANHA INTEIRA, não mensagem a mensagem.
+ *
+ * Mora aqui, junto dos outros fatos de provedor, porque a TELA precisa saber:
+ * é ela quem decide se mostra "enviar um teste". Em `lib/channels` arrastaria
+ * todos os adaptadores para o bundle do navegador.
+ *
+ * Sem este nome, cada tela descobria sozinha — e a que esquecesse mostrava um
+ * botão que sempre falha culpando a credencial, que foi o que aconteceu com o
+ * Monitor de Envios.
+ */
+const ENTREGA_A_CAMPANHA: readonly string[] = ['monitor_envios']
+
+export function entregaACampanhaInteira(provider: string): boolean {
+  return ENTREGA_A_CAMPANHA.includes(provider)
+}
+
 export function nomeDoProvedor(provider: string): string {
   return PROVEDOR_LABEL[provider] ?? provider
 }

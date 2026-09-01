@@ -475,13 +475,24 @@ export async function iniciarAgendadas(): Promise<number> {
   return iniciadas.length
 }
 
-/** Campanha sem nenhuma linha pendente está terminada. */
+/**
+ * Campanha sem nenhuma linha pendente está terminada.
+ *
+ * `external_code IS NULL` exclui a campanha delegada, e não é detalhe: ela não
+ * tem linha em `dispatches`, então "não existe pendente" é verdade desde o
+ * primeiro instante. Sem essa condição ela era marcada como concluída na mesma
+ * batida em que o Monitor a aprovava — e, como a sincronização ignora campanha
+ * concluída, o acompanhamento morria ali: progresso congelado e crédito não
+ * cobrado, com as mensagens saindo do outro lado. Quem fecha a delegada é
+ * `sincronizarUma`, quando o Monitor avisa que terminou.
+ */
 export async function fecharConcluidas(): Promise<number> {
   const fechadas = await sql<{ id: string }[]>`
     UPDATE campaigns c
        SET status = 'concluida', finished_at = now()
      WHERE c.status = 'enviando'
        AND c.materialized
+       AND c.external_code IS NULL
        AND NOT EXISTS (
          SELECT 1 FROM dispatches d
           WHERE d.campaign_id = c.id

@@ -1,6 +1,7 @@
 import 'server-only'
 import { sql } from '@/db'
-import type { Channel, InstanceStatus } from '@/db/schema/enums'
+import { entregaACampanhaInteira, type Channel, type InstanceStatus } from '@/db/schema/enums'
+import { lerSegredo } from '@/lib/cripto'
 
 /** Consultas das telas de canal. */
 
@@ -19,6 +20,19 @@ export type CanalConfigurado = {
   atualizadoEm: Date
   /** Quantos números conectados, quando o canal é WhatsApp não oficial. */
   numeros: number
+  /**
+   * O perfil padrão do Monitor de Envios, para o assistente já vir preenchido.
+   *
+   * Sai da credencial cifrada de propósito, mas NÃO é segredo: nome e foto do
+   * perfil são exatamente o que o destinatário vê no WhatsApp. O token, esse
+   * nunca sai — só estes quatro campos.
+   */
+  perfilPadrao: {
+    nome: string
+    fotoUrl: string
+    nome2: string
+    fotoUrl2: string
+  } | null
 }
 
 /**
@@ -28,18 +42,40 @@ export type CanalConfigurado = {
  * tela e escondê-lo com CSS é o mesmo que publicá-lo.
  */
 export async function canaisDaOrg(orgId: string): Promise<CanalConfigurado[]> {
-  return sql<CanalConfigurado[]>`
+  const linhas = await sql<(Omit<CanalConfigurado, 'perfilPadrao'> & { credenciais: string | null })[]>`
     SELECT c.id, c.channel AS canal, c.provider AS provedor, c.label AS rotulo,
            c.active AS ativo, c.is_default AS padrao, c.org_id AS "orgId",
            (c.credentials IS NOT NULL) AS "temCredencial",
            c.broken_until AS "quebradoAte", c.failure_streak AS "falhasSeguidas",
            c.updated_at AS "atualizadoEm",
+           c.credentials AS credenciais,
            (SELECT count(*)::int FROM whatsapp_instances w
              WHERE w.config_id = c.id AND w.active AND w.status = 'conectado') AS numeros
       FROM channel_configs c
      WHERE c.org_id = ${orgId} OR c.org_id IS NULL
      ORDER BY (c.org_id IS NULL), c.channel, c.label
   `
+
+  return linhas.map(({ credenciais, ...canal }) => ({
+    ...canal,
+    // A credencial some aqui. Só os quatro campos de perfil seguem, e só para
+    // o provedor que os usa.
+    perfilPadrao: entregaACampanhaInteira(canal.provedor) ? perfilDe(credenciais) : null,
+  }))
+}
+
+/** Só o perfil, decifrado. O token fica para trás. */
+function perfilDe(credenciais: string | null): CanalConfigurado['perfilPadrao'] {
+  const segredo = lerSegredo<Record<string, unknown>>(credenciais)
+  if (!segredo) return null
+  const texto = (chave: string) => (typeof segredo[chave] === 'string' ? (segredo[chave] as string) : '')
+  const perfil = {
+    nome: texto('perfilNome'),
+    fotoUrl: texto('perfilFoto'),
+    nome2: texto('perfilNome2'),
+    fotoUrl2: texto('perfilFoto2'),
+  }
+  return perfil.nome || perfil.fotoUrl || perfil.nome2 || perfil.fotoUrl2 ? perfil : null
 }
 
 export type NumeroConectado = {

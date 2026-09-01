@@ -43,6 +43,7 @@ export default async function NovoDisparo() {
     numeros: c.numeros,
     daPlataforma: c.orgId === null,
     instavel: c.quebradoAte ? c.quebradoAte.getTime() > agora : false,
+    perfilPadrao: c.perfilPadrao,
   }))
 
   return (

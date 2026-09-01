@@ -1,4 +1,5 @@
 import type { Channel } from '@/db/schema/enums'
+import { TAMANHO_MAXIMO, TAMANHO_MINIMO } from '@/lib/channels/nome-perfil'
 
 /**
  * Os campos de cada provedor, descritos como dados.
@@ -148,7 +149,7 @@ export const CAMPOS_DO_PROVEDOR: Record<string, CampoDoProvedor[]> = {
     {
       nome: 'perfilNome',
       rotulo: 'Perfil padrão — nome',
-      dica: 'Até 25 caracteres. Tem que ser nome comercial: nada de frase, promessa ou termo de aposta.',
+      dica: `De ${TAMANHO_MINIMO} a ${TAMANHO_MAXIMO} caracteres. Tem que ser nome comercial: nada de frase, promessa ou termo de aposta.`,
       exemplo: 'Moveis Silva',
     },
     {
