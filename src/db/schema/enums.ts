@@ -96,7 +96,16 @@ export const CANAL_PROVEDORES: Record<Channel, readonly string[]> = {
   whatsapp_oficial: ['meta_cloud', 'generico'],
   // O Monitor entrega por chip, não pela Meta Cloud API — por isso mora aqui.
   whatsapp_nao_oficial: ['evolution', 'monitor_envios', 'generico'],
-  sms: ['smsdev', 'comtele', 'generico'],
+  /*
+   * O Monitor também entrega SMS, pela MESMA API.
+   *
+   * A documentação deles não tem seção de SMS: não há campo de canal nem
+   * endpoint separado — quem decide como a campanha sai é a conta do lado
+   * deles. Então o envio é idêntico ao do WhatsApp, incluindo `perfil_nome` e
+   * `foto_perfil`, que são obrigatórios no `receber_campanha_externa.php`
+   * qualquer que seja a entrega.
+   */
+  sms: ['smsdev', 'comtele', 'monitor_envios', 'generico'],
   rcs: ['generico'],
   voz: ['generico'],
 }

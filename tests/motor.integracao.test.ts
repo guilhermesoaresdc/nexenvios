@@ -164,12 +164,31 @@ cenario('motor de disparo', () => {
   it('envia, debita o crédito e conclui a campanha', async () => {
     // Duas batidas: a primeira promove a campanha de agendada para enviando.
     let enviados = 0
-    // Várias batidas: o lote é limitado de propósito, e é assim que o motor
-    // roda em produção — uma invocação por minuto, um pedaço por vez.
-    for (let i = 0; i < 8; i += 1) {
+    /*
+     * Bate até a fila DESTA campanha esvaziar, e não até uma batida vir vazia.
+     *
+     * O motor espalha os envios no tempo conforme o ritmo: as últimas linhas
+     * nascem com `scheduled_for` alguns milissegundos à frente. Como as
+     * batidas do teste acontecem em sequência imediata, era normal uma delas
+     * não achar nada ainda — e parar por `tentados === 0` deixava duas linhas
+     * por enviar. A suíte inteira falhava em 3 de 4 execuções por isso, sempre
+     * neste teste, sempre por 2 linhas com `attempts: 0`.
+     *
+     * Esperar o vencimento é o que a produção faz: uma invocação por minuto,
+     * um pedaço por vez.
+     */
+    const limite = Date.now() + 15_000
+    for (;;) {
       const resumo = await motor.bater(100)
       enviados += resumo.enviados
-      if (resumo.tentados === 0 && i > 0) break
+
+      const [faltam] = await sql<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM dispatches
+         WHERE campaign_id = ${campanhaId} AND status IN ('pendente', 'enviando')
+      `
+      if ((faltam?.n ?? 0) === 0) break
+      if (Date.now() > limite) throw new Error(`${faltam?.n} linha(s) ficaram para trás`)
+      await new Promise((ok) => setTimeout(ok, 50))
     }
 
     expect(enviados).toBe(39)

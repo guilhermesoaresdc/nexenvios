@@ -761,6 +761,68 @@ cenario('Monitor de Envios', () => {
     expect(canal!.falhas).toBe(0)
   })
 
+  it('SMS pelo Monitor também é campanha inteira, não fila de mensagens', async () => {
+    const servico = await import('@/lib/campanhas/servico')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    /*
+     * A documentação deles não tem seção de SMS: nenhum campo de canal, nenhum
+     * endpoint separado. Quem decide a entrega é a conta do lado deles, então
+     * o envio é o mesmo `receber_campanha_externa.php` — inclusive com
+     * `perfil_nome` e `foto_perfil`, que são obrigatórios ali qualquer que
+     * seja o canal.
+     *
+     * O que este teste protege é o nosso lado: SMS por provedor delegado NÃO
+     * pode materializar linha em `dispatches`, senão o motor tentaria mandar
+     * de novo o que o Monitor já mandou e o cliente pagaria duas vezes.
+     */
+    const [canalSms] = await db
+      .insert(esquema.channelConfigs)
+      .values({
+        orgId,
+        channel: 'sms',
+        provider: 'monitor_envios',
+        label: 'SMS pelo Monitor',
+        credentials: (await import('@/lib/cripto')).guardarSegredo({ apiToken: 'token-de-teste' }),
+      })
+      .returning({ id: esquema.channelConfigs.id })
+
+    await db
+      .insert(esquema.channelPrices)
+      .values({ orgId, channel: 'sms', price: '0.07' })
+      .onConflictDoNothing()
+
+    const criada = await servico.criarCampanha(orgId, null, {
+      nome: 'SMS de teste',
+      canal: 'sms',
+      configId: canalSms!.id,
+      corpo: 'Mensagem curta de SMS',
+      fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
+      perfil,
+    })
+
+    expect(criada.ok).toBe(true)
+    if (!criada.ok) return
+
+    const [campanha] = await db
+      .select()
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, criada.campanhaId))
+    expect(campanha!.channel).toBe('sms')
+    expect(campanha!.status).toBe('aguardando')
+    expect(campanha!.externalProvider).toBe('monitor_envios')
+
+    const linhas = await db
+      .select()
+      .from(esquema.dispatches)
+      .where(eq(esquema.dispatches.campaignId, criada.campanhaId))
+    expect(linhas).toHaveLength(0)
+
+    // E o preço cobrado é o do canal SMS, não o do WhatsApp.
+    expect(Number(campanha!.unitPrice)).toBeCloseTo(0.07, 4)
+  })
+
   it('recusa copy acima do limite com mídia', async () => {
     const { conferirSubmissao, LIMITES } = await import('@/lib/channels/monitor')
     const erro = conferirSubmissao({

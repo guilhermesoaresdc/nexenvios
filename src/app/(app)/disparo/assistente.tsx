@@ -1216,14 +1216,19 @@ export function Assistente({
             {peloMonitor ? (
               <Pad>
                 <PadTitulo
-                  titulo="Perfil no WhatsApp"
-                  descricao="É o nome e a foto que quem recebe vê. O Monitor de Envios exige os dois perfis: o principal e um reserva, para a equipe deles trocar se a Meta reprovar o primeiro."
+                  titulo={canal === 'sms' ? 'Perfil exigido pelo Monitor' : 'Perfil no WhatsApp'}
+                  descricao={
+                    canal === 'sms'
+                      ? 'No SMS ninguém vê nome nem foto — quem recebe vê o remetente da operadora. Mas o Monitor de Envios exige os dois perfis em toda campanha, qualquer que seja a entrega, e recusa a submissão sem eles.'
+                      : 'É o nome e a foto que quem recebe vê. O Monitor de Envios exige os dois perfis: o principal e um reserva, para a equipe deles trocar se a Meta reprovar o primeiro.'
+                  }
                 />
                 <div className="space-y-4 p-6">
                   <Aviso tom="info">
                     O nome precisa ser comercial — <b>Móveis Silva</b>, <b>Padaria Aurora</b>. Frase,
                     promessa, &quot;Oficial&quot; ou termo de aposta fazem a Meta banir o número, e o
-                    Monitor recusa antes disso.{' '}
+                    Monitor recusa antes disso — a régua vale para toda campanha que passa por
+                    eles.{' '}
                     <Link href="/canais/nome-de-perfil" className="font-semibold underline">
                       Ver as regras e testar um nome
                     </Link>
