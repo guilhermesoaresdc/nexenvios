@@ -147,7 +147,15 @@ export function FormularioDeCanal({
           </Campo>
         )}
 
-        <Campo rotulo="Provedor" obrigatorio>
+        <Campo
+          rotulo="Provedor"
+          obrigatorio
+          dica={
+            editando
+              ? 'Só troca com o canal parado: campanha em andamento quebraria no meio.'
+              : undefined
+          }
+        >
           <Selecao value={provedorValido} onChange={(e) => setProvedor(e.target.value)}>
             {listaDeProvedores.map((p) => (
               <option key={p} value={p}>

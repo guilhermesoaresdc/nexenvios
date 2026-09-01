@@ -13,6 +13,7 @@ import {
   type CredencialMonitor,
   type Perfil,
 } from '@/lib/channels/monitor'
+import { registrarFalhaDoCanal, registrarSucessoDoCanal } from '@/lib/delivery/disjuntor'
 import { pediuParaSair } from './saida'
 import { descadastrar } from './servico'
 import { fatiaDoPublico } from './publico'
@@ -242,6 +243,7 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
       billed: campaigns.externalBilled,
       total: campaigns.total,
       unitPrice: campaigns.unitPrice,
+      configId: campaigns.configId,
       credentials: channelConfigs.credentials,
     })
     .from(campaigns)
@@ -275,6 +277,9 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
         .update(campaigns)
         .set({ externalSyncedAt: new Date() })
         .where(eq(campaigns.id, campanha.id))
+      // Canal sem token legível é canal quebrado, e é o cartão do canal que a
+      // operação olha — não este log.
+      if (campanha.configId) await registrarFalhaDoCanal(campanha.configId)
       log.warn('campanha delegada sem credencial legível', { campanha: campanha.id })
       continue
     }
@@ -282,6 +287,16 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
     resumo.conferidas += 1
     try {
       await sincronizarUma(campanha, credencial, resumo)
+      /*
+       * A consulta que deu certo religa o canal.
+       *
+       * Este é o ÚNICO sinal de saúde que um canal delegado produz. O disjuntor
+       * é alimentado pelo envio linha a linha, e campanha delegada não passa
+       * por lá — sem estas duas linhas, um token revogado ficava para sempre
+       * como canal saudável no /admin/provedores enquanto nenhuma campanha
+       * andava.
+       */
+      if (campanha.configId) await registrarSucessoDoCanal(campanha.configId)
     } catch (erro) {
       // Uma campanha que falha não pode parar as outras. O carimbo de
       // sincronização vai junto para não repetir a mesma no minuto seguinte.
@@ -293,6 +308,7 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
         .update(campaigns)
         .set({ externalSyncedAt: new Date() })
         .where(eq(campaigns.id, campanha.id))
+      if (campanha.configId) await registrarFalhaDoCanal(campanha.configId)
     }
   }
 
@@ -310,6 +326,8 @@ type CampanhaExterna = {
   billed: number
   total: number
   unitPrice: string
+  /** Nulo quando o canal foi apagado — não há disjuntor para alimentar. */
+  configId: string | null
 }
 
 async function sincronizarUma(

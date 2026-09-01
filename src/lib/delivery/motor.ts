@@ -6,6 +6,7 @@ import type { Channel } from '@/db/schema/enums'
 import { enviarPeloCanal, montarConfig, type Destino, type Resultado } from '@/lib/channels'
 import { lerSegredo } from '@/lib/cripto'
 import { criarLog } from '@/lib/log'
+import { registrarFalhaDoCanal, registrarSucessoDoCanal } from './disjuntor'
 import { esperaDaRetentativa, MAX_TENTATIVAS } from './janela'
 
 const log = criarLog('motor')
@@ -32,10 +33,6 @@ const LOTE_PADRAO = Number(process.env.LOTE_DO_MOTOR ?? 60)
 
 /** Depois disso, uma linha presa em 'enviando' volta para a fila. */
 const PRESA_APOS_MS = 5 * 60 * 1000
-
-/** Falhas seguidas antes de o canal ser desligado por um tempo. */
-const FALHAS_ATE_DISJUNTOR = 8
-const DISJUNTOR_MS = 10 * 60 * 1000
 
 type LinhaParaEnviar = {
   id: string
@@ -171,26 +168,6 @@ async function escolherInstancia(orgId: string): Promise<{ id: string; nome: str
     RETURNING w.id, w.instance_name AS nome
   `
   return escolhida ?? null
-}
-
-async function registrarFalhaDoCanal(configId: string): Promise<void> {
-  await sql`
-    UPDATE channel_configs
-       SET failure_streak = failure_streak + 1,
-           broken_until = CASE
-             WHEN failure_streak + 1 >= ${FALHAS_ATE_DISJUNTOR}
-             THEN now() + (${DISJUNTOR_MS} || ' milliseconds')::interval
-             ELSE broken_until
-           END
-     WHERE id = ${configId}
-  `
-}
-
-async function registrarSucessoDoCanal(configId: string): Promise<void> {
-  await db
-    .update(channelConfigs)
-    .set({ failureStreak: 0, brokenUntil: null })
-    .where(and(eq(channelConfigs.id, configId), raw`${channelConfigs.failureStreak} > 0`))
 }
 
 async function concluir(linha: LinhaParaEnviar, resultado: Resultado): Promise<void> {

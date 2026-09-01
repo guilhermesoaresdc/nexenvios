@@ -1,6 +1,6 @@
 import 'server-only'
 import { and, eq, isNull, or } from 'drizzle-orm'
-import { db } from '@/db'
+import { db, sql } from '@/db'
 import { auditLog, channelConfigs } from '@/db/schema'
 import { entregaACampanhaInteira, type Channel } from '@/db/schema/enums'
 import { guardarSegredo, lerSegredo } from '@/lib/cripto'
@@ -16,6 +16,56 @@ import { conferirNomeDePerfil } from '@/lib/channels/nome-perfil'
  */
 
 export type Salvamento = { ok: true; id: string } | { ok: false; erro: string }
+
+/**
+ * Trocar o provedor de um canal com trabalho vivo mata a fila em silêncio.
+ *
+ * `montarConfig` recebe o canal CONGELADO na linha de envio e o provedor ATUAL
+ * da configuração. Trocar um dos dois faz a combinação deixar de existir, e
+ * daí em diante toda linha daquela fila falha com "canal sem configuração" —
+ * sem erro na tela de quem trocou, sem erro no build, só mensagem nenhuma
+ * saindo. Campanha delegada é pior: ela vive do polling, que lê a credencial
+ * por aqui, e passaria a consultar uma plataforma que não é a dona da campanha.
+ *
+ * O certo é criar OUTRO canal com o provedor novo — trocar o de dentro
+ * reescreve o passado de campanhas que já saíram por outro caminho. Rótulo,
+ * credencial e o resto continuam livres: é assim que se gira um token.
+ *
+ * Devolve o motivo da recusa, ou nulo quando não há nada em risco.
+ */
+async function conferirTrocaDeProvedor(configId: string): Promise<string | null> {
+  const [contagem] = await sql<{ mensagens: number; campanhas: number }[]>`
+    SELECT
+      (SELECT count(*) FROM dispatches
+        WHERE config_id = ${configId}
+          AND status IN ('pendente', 'enviando'))::int AS mensagens,
+      (SELECT count(*) FROM campaigns
+        WHERE config_id = ${configId}
+          AND status IN ('preparando', 'aguardando', 'agendada', 'enviando', 'pausada'))::int
+        AS campanhas
+  `
+
+  const mensagens = contagem?.mensagens ?? 0
+  const campanhas = contagem?.campanhas ?? 0
+  if (mensagens === 0 && campanhas === 0) return null
+
+  const partes: string[] = []
+  if (campanhas > 0) {
+    partes.push(campanhas === 1 ? '1 campanha em andamento' : `${campanhas} campanhas em andamento`)
+  }
+  if (mensagens > 0) {
+    partes.push(
+      mensagens === 1
+        ? '1 mensagem ainda na fila'
+        : `${mensagens.toLocaleString('pt-BR')} mensagens ainda na fila`,
+    )
+  }
+
+  return (
+    `Este canal tem ${partes.join(' e ')}. Trocar o provedor agora faria tudo isso parar ` +
+    'sem aviso. Espere terminar, ou crie um canal novo com o outro provedor.'
+  )
+}
 
 export async function salvarCanal(opcoes: {
   /** Nulo = provedor da plataforma, herdado por todos os clientes. */
@@ -35,7 +85,12 @@ export async function salvarCanal(opcoes: {
   let anteriores: Record<string, unknown> = {}
   if (opcoes.configId) {
     const [atual] = await db
-      .select({ credentials: channelConfigs.credentials, orgId: channelConfigs.orgId })
+      .select({
+        credentials: channelConfigs.credentials,
+        orgId: channelConfigs.orgId,
+        canal: channelConfigs.channel,
+        provider: channelConfigs.provider,
+      })
       .from(channelConfigs)
       .where(eq(channelConfigs.id, opcoes.configId))
       .limit(1)
@@ -45,6 +100,11 @@ export async function salvarCanal(opcoes: {
     // canal de um cliente não pode ser editado pela tela de outro.
     if (atual.orgId !== opcoes.orgId) return { ok: false, erro: 'Você não pode editar este canal.' }
     anteriores = lerSegredo<Record<string, unknown>>(atual.credentials) ?? {}
+
+    if (atual.canal !== opcoes.canal || atual.provider !== opcoes.provider) {
+      const recusa = await conferirTrocaDeProvedor(opcoes.configId)
+      if (recusa) return { ok: false, erro: recusa }
+    }
   }
 
   const credenciais: Record<string, unknown> = {}

@@ -33,6 +33,8 @@ type EstadoFalso = {
   recebidas: number
   recebeuUpload: Record<string, string> | null
   baseRecebida: string
+  /** Liga o 401 do lado deles: token revogado, conta suspensa, IP fora da lista. */
+  tokenRevogado: boolean
 }
 
 const estado: EstadoFalso = {
@@ -44,6 +46,7 @@ const estado: EstadoFalso = {
   recebidas: 0,
   recebeuUpload: null,
   baseRecebida: '',
+  tokenRevogado: false,
 }
 
 let servidor: Server | undefined
@@ -59,6 +62,12 @@ cenario('Monitor de Envios', () => {
   beforeAll(async () => {
     servidor = createServer((req, res) => {
       const url = new URL(req.url ?? '/', BASE_FALSA)
+
+      if (estado.tokenRevogado && url.pathname.endsWith('.php')) {
+        res.writeHead(401, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ success: false, message: 'Token de acesso inválido.' }))
+        return
+      }
 
       if (url.pathname.endsWith('receber_campanha_externa.php')) {
         const pedacos: Buffer[] = []
@@ -495,6 +504,81 @@ cenario('Monitor de Envios', () => {
     })
     expect(erro).toMatch(/Perfil principal/)
     expect(erro).toMatch(/bet/)
+  })
+
+  it('token revogado aparece no cartão do canal, não só no log', async () => {
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    /*
+     * O disjuntor tinha um alimentador só: o envio linha a linha. Campanha
+     * delegada nunca passa por lá — a plataforma deles é que envia. O efeito
+     * era um canal com token revogado marcado como saudável para SEMPRE:
+     * "credencial salva", sem falha nenhuma no /admin/provedores, enquanto
+     * nada andava e ninguém tinha como saber por quê.
+     */
+    await db
+      .update(esquema.channelConfigs)
+      .set({ failureStreak: 0, brokenUntil: null })
+      .where(eq(esquema.channelConfigs.id, configId))
+
+    estado.tokenRevogado = true
+
+    for (const esperado of [1, 2]) {
+      await db
+        .update(esquema.campaigns)
+        .set({ externalSyncedAt: null })
+        .where(eq(esquema.campaigns.id, campanhaId))
+      await sincronizarExternas()
+
+      const [canal] = await db
+        .select({ falhas: esquema.channelConfigs.failureStreak })
+        .from(esquema.channelConfigs)
+        .where(eq(esquema.channelConfigs.id, configId))
+      expect(canal!.falhas).toBe(esperado)
+    }
+
+    // E a campanha continua viva: consulta que falhou não é campanha perdida.
+    const [campanha] = await db
+      .select({ status: esquema.campaigns.status })
+      .from(esquema.campaigns)
+      .where(eq(esquema.campaigns.id, campanhaId))
+    expect(campanha!.status).toBe('enviando')
+  })
+
+  it('a consulta que volta a funcionar religa o canal', async () => {
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    const { db } = await import('@/db')
+    const esquema = await import('@/db/schema')
+
+    estado.tokenRevogado = false
+    estado.aprovacao = 'aprovado'
+    estado.motivo = null
+
+    // Semeado à mão de propósito: o teste tem que provar que a sincronização
+    // ZERA o contador, e não apenas que ele já estava zerado.
+    await db
+      .update(esquema.channelConfigs)
+      .set({ failureStreak: 3 })
+      .where(eq(esquema.channelConfigs.id, configId))
+
+    await db
+      .update(esquema.campaigns)
+      .set({ externalSyncedAt: null })
+      .where(eq(esquema.campaigns.id, campanhaId))
+    await sincronizarExternas()
+
+    const [canal] = await db
+      .select({
+        falhas: esquema.channelConfigs.failureStreak,
+        quebradoAte: esquema.channelConfigs.brokenUntil,
+      })
+      .from(esquema.channelConfigs)
+      .where(eq(esquema.channelConfigs.id, configId))
+
+    expect(canal!.falhas).toBe(0)
+    expect(canal!.quebradoAte).toBeNull()
   })
 
   it('recusa copy acima do limite com mídia', async () => {
