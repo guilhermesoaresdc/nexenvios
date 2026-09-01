@@ -164,8 +164,8 @@ CREATE TRIGGER dispatches_conta
 -- ───────────────────────────────────────────────── preços de fábrica
 
 INSERT INTO channel_prices (org_id, channel, price) VALUES
-  (NULL, 'whatsapp_oficial',     0.1200),
-  (NULL, 'whatsapp_nao_oficial', 0.0400),
+  (NULL, 'whatsapp_oficial',     0.3000),
+  (NULL, 'whatsapp_nao_oficial', 0.2500),
   (NULL, 'sms',                  0.0700),
   (NULL, 'rcs',                  0.1000),
   (NULL, 'voz',                  0.0900)

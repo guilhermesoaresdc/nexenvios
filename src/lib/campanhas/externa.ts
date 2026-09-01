@@ -53,7 +53,8 @@ export type DadosDaSubmissao = {
   corpo: string
   fontes: Fonte[]
   configId: string
-  perfil: Perfil
+  /** Nulo cai para o perfil padrão do canal. */
+  perfil: Perfil | null
   mediaUrl?: string | null
   agendarPara?: Date | null
   politica?: { documento: string; partido: string } | null
@@ -141,6 +142,20 @@ export async function entregarAoMonitor(dados: DadosDaSubmissao): Promise<Result
   }
   if (base.total === 0) return { ok: false, erro: 'O público escolhido não tem ninguém.' }
 
+  /*
+   * O perfil da campanha, ou o padrão do canal.
+   *
+   * O comentário de `CredencialMonitor` já prometia isso e a promessa era
+   * falsa: os quatro campos eram lidos e descartados. É o que torna a API
+   * pública utilizável — lá não há tela para digitar o perfil.
+   */
+  const perfil: Perfil = {
+    nome: dados.perfil?.nome || credencial.perfilNome || '',
+    fotoUrl: dados.perfil?.fotoUrl || credencial.perfilFoto || '',
+    nome2: dados.perfil?.nome2 || credencial.perfilNome2 || '',
+    fotoUrl2: dados.perfil?.fotoUrl2 || credencial.perfilFoto2 || '',
+  }
+
   const submissao = {
     nome: dados.nome,
     /*
@@ -152,7 +167,7 @@ export async function entregarAoMonitor(dados: DadosDaSubmissao): Promise<Result
      * ninguém do outro lado escuta.
      */
     copy: dados.corpo,
-    perfil: dados.perfil,
+    perfil,
     base: { nomeArquivo: `base-${dados.campanhaId}.csv`, conteudo: base.csv },
     mediaUrl: dados.mediaUrl ?? null,
     referencia: dados.campanhaId,

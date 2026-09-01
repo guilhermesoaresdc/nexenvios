@@ -207,6 +207,20 @@ const esquemaCriacao = z.object({
     })
     .nullable()
     .optional(),
+  /**
+   * A declaração de campanha política, exigida pelo Monitor de Envios.
+   *
+   * Sem ela eles não acrescentam a frase de descadastro — e a nossa também
+   * não vai, porque neste canal o corpo segue cru. A campanha sairia sem
+   * nenhuma saída, contra o art. 57-G.
+   */
+  politica: z
+    .object({
+      documento: z.string().trim().min(11).max(20),
+      partido: z.string().trim().min(1).max(60),
+    })
+    .nullable()
+    .optional(),
 })
 
 export type EntradaDaCriacao = z.infer<typeof esquemaCriacao>
@@ -261,6 +275,7 @@ export async function criarDisparo(
     eleitoral: dados.data.eleitoral,
     agendarPara,
     perfil: dados.data.perfil ?? null,
+    politica: dados.data.politica ?? null,
   })
 
   if (!resultado.ok) return { erro: resultado.erro }

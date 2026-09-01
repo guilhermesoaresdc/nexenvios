@@ -148,7 +148,7 @@ cenario('Monitor de Envios', () => {
       .insert(esquema.channelConfigs)
       .values({
         orgId,
-        channel: 'whatsapp_oficial',
+        channel: 'whatsapp_nao_oficial',
         provider: 'monitor_envios',
         label: 'Monitor falso',
         credentials: cripto.guardarSegredo({ apiToken: 'token-de-teste' }),
@@ -166,7 +166,7 @@ cenario('Monitor de Envios', () => {
 
     await db
       .insert(esquema.channelPrices)
-      .values({ orgId, channel: 'whatsapp_oficial', price: '0.10' })
+      .values({ orgId, channel: 'whatsapp_nao_oficial', price: '0.10' })
   })
 
   afterAll(async () => {
@@ -194,7 +194,7 @@ cenario('Monitor de Envios', () => {
 
     const criada = await servico.criarCampanha(orgId, null, {
       nome: 'Delegada de teste',
-      canal: 'whatsapp_oficial',
+      canal: 'whatsapp_nao_oficial',
       configId,
       corpo: 'Olá {{primeiro_nome}}!',
       fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
@@ -402,7 +402,7 @@ cenario('Monitor de Envios', () => {
 
     const criada = await servico.criarCampanha(orgId, null, {
       nome: 'Vai ser rejeitada',
-      canal: 'whatsapp_oficial',
+      canal: 'whatsapp_nao_oficial',
       configId,
       corpo: 'Texto qualquer',
       fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
@@ -427,6 +427,50 @@ cenario('Monitor de Envios', () => {
       .where(eq(esquema.campaigns.id, criada.campanhaId))
     expect(campanha!.status).toBe('cancelada')
     expect(campanha!.externalReason).toBe('Conteúdo contra os termos de uso.')
+  })
+
+  it('barra campanha eleitoral sem a declaração política', async () => {
+    const servico = await import('@/lib/campanhas/servico')
+
+    /*
+     * Neste canal o corpo vai cru, e a frase de descadastro é a DELES — que
+     * só é acrescentada com politica=true. Sem a declaração, a mensagem sairia
+     * sem nenhuma saída: art. 57-G descumprido.
+     */
+    const r = await servico.criarCampanha(orgId, null, {
+      nome: 'Eleitoral sem declarar',
+      canal: 'whatsapp_nao_oficial',
+      configId,
+      corpo: 'Vote consciente',
+      fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
+      perfil,
+      eleitoral: true,
+    })
+
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.erro).toMatch(/candidato|partido/i)
+  })
+
+  it('campanha eleitoral declarada vai com politica=true e os dados', async () => {
+    const servico = await import('@/lib/campanhas/servico')
+
+    const r = await servico.criarCampanha(orgId, null, {
+      nome: 'Eleitoral declarada',
+      canal: 'whatsapp_nao_oficial',
+      configId,
+      corpo: 'Vote consciente',
+      fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
+      perfil,
+      eleitoral: true,
+      politica: { documento: '12.345.678/0001-95', partido: 'EXEMPLO' },
+    })
+
+    expect(r.ok).toBe(true)
+    expect(estado.recebeuUpload?.politica).toBe('true')
+    expect(estado.recebeuUpload?.politica_documento).toBe('12.345.678/0001-95')
+    expect(estado.recebeuUpload?.politica_partido).toBe('EXEMPLO')
+    expect(estado.recebeuUpload?.politica_aceite).toBe('true')
   })
 
   it('recusa perfil reserva igual ao principal antes de gastar o upload', async () => {

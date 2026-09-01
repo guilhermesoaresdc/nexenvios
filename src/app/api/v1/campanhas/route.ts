@@ -26,6 +26,27 @@ const corpo = z.object({
   janelaInicio: z.coerce.number().int().min(0).max(23).optional(),
   janelaFim: z.coerce.number().int().min(1).max(24).optional(),
   agendarPara: z.string().datetime().optional(),
+  /**
+   * O perfil do WhatsApp, para canal de entrega delegada (Monitor de Envios).
+   *
+   * Opcional: sem ele vale o perfil padrão cadastrado no canal. Sem nenhum dos
+   * dois a criação é recusada — e a mensagem diz qual dos caminhos usar.
+   */
+  perfil: z
+    .object({
+      nome: z.string().trim().min(1).max(25),
+      fotoUrl: z.string().url(),
+      nome2: z.string().trim().min(1).max(25),
+      fotoUrl2: z.string().url(),
+    })
+    .optional(),
+  /** Exigida quando `eleitoral` é true num canal de entrega delegada. */
+  politica: z
+    .object({
+      documento: z.string().trim().min(11).max(20),
+      partido: z.string().trim().min(1).max(60),
+    })
+    .optional(),
   eleitoral: z.boolean().optional(),
 })
 
@@ -68,6 +89,8 @@ export async function POST(req: Request) {
     quietEnd: dados.data.janelaFim,
     eleitoral: dados.data.eleitoral,
     agendarPara: dados.data.agendarPara ? new Date(dados.data.agendarPara) : null,
+    perfil: dados.data.perfil ?? null,
+    politica: dados.data.politica ?? null,
   })
 
   if (!r.ok) {

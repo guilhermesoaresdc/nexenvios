@@ -93,8 +93,9 @@ export const CANAL_CODIGO: Record<Channel, string> = {
 
 /** Provedores que cada canal aceita. `generico` é HTTP configurável na tela. */
 export const CANAL_PROVEDORES: Record<Channel, readonly string[]> = {
-  whatsapp_oficial: ['meta_cloud', 'monitor_envios', 'generico'],
-  whatsapp_nao_oficial: ['evolution', 'generico'],
+  whatsapp_oficial: ['meta_cloud', 'generico'],
+  // O Monitor entrega por chip, não pela Meta Cloud API — por isso mora aqui.
+  whatsapp_nao_oficial: ['evolution', 'monitor_envios', 'generico'],
   sms: ['smsdev', 'comtele', 'generico'],
   rcs: ['generico'],
   voz: ['generico'],

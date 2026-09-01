@@ -287,26 +287,39 @@ export async function criarCampanha(
    * que não temos.
    */
   if (canal.provedor === PROVEDOR_EXTERNO) {
-    const perfil = dados.perfil
-    if (!perfil) {
-      /*
-       * Marcar como falha ANTES de sair.
-       *
-       * A linha da campanha já existe neste ponto. Voltar sem tocar nela
-       * deixava uma órfã em 'preparando' com `materialized = false` — e o
-       * motor materializa exatamente isso, criando linhas de envio para uma
-       * campanha que devia ser entregue inteira. Seria envio duplicado.
-       */
+    /*
+     * Perfil nulo não é erro: `entregarAoMonitor` cai para o padrão do canal.
+     * Quem recusa é a conferência de lá, que sabe se sobrou algum campo vazio
+     * depois da queda — aqui a gente ainda não sabe.
+     */
+    const perfil = dados.perfil ?? null
+    /*
+     * Campanha eleitoral só sai declarada.
+     *
+     * Neste canal o corpo vai CRU, sem a nossa frase — porque quem processa a
+     * resposta é a plataforma deles, e a palavra que eles escutam é "2". Mas
+     * eles só acrescentam essa frase quando a campanha vai com politica=true.
+     * Sem a declaração, a mensagem sairia sem NENHUMA saída: art. 57-G
+     * descumprido, e R$ 100 de multa por mensagem a quem já pediu para sair.
+     *
+     * A tela barra antes; esta é a trava que vale para a API pública também.
+     */
+    if (eleitoral && !dados.politica) {
       await db
         .update(campaigns)
         .set({
           status: 'falhou',
           materialized: true,
-          externalReason: 'Faltou o perfil do WhatsApp exigido pelo Monitor de Envios.',
+          externalReason:
+            'Campanha eleitoral pelo Monitor de Envios exige a declaração política (documento do candidato e partido). Sem ela a mensagem sairia sem a frase de descadastro exigida por lei.',
           updatedAt: new Date(),
         })
         .where(eq(campaigns.id, campanha.id))
-      return { ok: false, erro: 'O Monitor de Envios exige o perfil que aparece no WhatsApp.' }
+      return {
+        ok: false,
+        erro:
+          'Campanha eleitoral por este canal exige o CPF ou CNPJ do candidato e o partido — é o que permite acrescentar a frase de descadastro exigida por lei.',
+      }
     }
 
     const entrega = await entregarAoMonitor({

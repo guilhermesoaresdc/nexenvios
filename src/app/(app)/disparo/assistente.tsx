@@ -14,6 +14,7 @@ import {
   CANAL_CODIGO,
   CANAL_CURTO,
   CANAL_LABEL,
+  entregaACampanhaInteira,
   nomeDoProvedor,
   type Channel,
 } from '@/db/schema/enums'
@@ -130,7 +131,16 @@ function CartaoDeCanal({
   escolher: () => void
 }) {
   const bloqueado = !canal.ativo || !canal.temCredencial
-  const semNumero = canal.canal === 'whatsapp_nao_oficial' && canal.numeros === 0
+  /*
+   * Chip conectado é conversa de quem envia pelos NOSSOS números.
+   *
+   * O Monitor de Envios é whatsapp_nao_oficial, mas tem infraestrutura
+   * própria: nunca passa por `whatsapp_instances`. Sem esta exceção o cartão
+   * pedia para "conectar um número em Canais" que não existe e não faria
+   * diferença nenhuma.
+   */
+  const usaNossosNumeros = canal.canal === 'whatsapp_nao_oficial' && !entregaACampanhaInteira(canal.provedor)
+  const semNumero = usaNossosNumeros && canal.numeros === 0
 
   const miolo = (
     <>
@@ -138,7 +148,7 @@ function CartaoDeCanal({
         <Etiqueta>{CANAL_CODIGO[canal.canal]}</Etiqueta>
         {canal.daPlataforma ? <Chip tom="navy">Provedor da Nex</Chip> : null}
         {canal.instavel ? <Chip tom="vermelho">Provedor instável</Chip> : null}
-        {canal.canal === 'whatsapp_nao_oficial' && !bloqueado ? (
+        {usaNossosNumeros && !bloqueado ? (
           <Chip tom={canal.numeros > 0 ? 'verde' : 'ambar'}>
             {canal.numeros > 0
               ? `${canal.numeros} ${canal.numeros === 1 ? 'número conectado' : 'números conectados'}`
@@ -285,6 +295,10 @@ export function Assistente({
   const [perfilNome2, setPerfilNome2] = useState('')
   const [perfilFoto2, setPerfilFoto2] = useState('')
 
+  // Exigidos pelo Monitor quando a campanha é declarada política.
+  const [politicaDocumento, setPoliticaDocumento] = useState('')
+  const [politicaPartido, setPoliticaPartido] = useState('')
+
   const [orcamento, setOrcamento] = useState<Orcamento | null>(null)
   const [orcando, setOrcando] = useState(false)
   const [erroDoOrcamento, setErroDoOrcamento] = useState<string | null>(null)
@@ -404,6 +418,18 @@ export function Assistente({
       }
       if (vereditoNome && !vereditoNome.ok) return `Perfil principal — ${vereditoNome.motivo}`
       if (vereditoNome2 && !vereditoNome2.ok) return `Perfil reserva — ${vereditoNome2.motivo}`
+      /*
+       * Sem declarar a campanha como política, o Monitor não acrescenta a
+       * frase de descadastro — e a nossa também não vai, porque o corpo segue
+       * cru neste canal. A campanha sairia sem NENHUMA saída, contra o art.
+       * 57-G. Barrar aqui é o único jeito de isso não acontecer.
+       */
+      if (eleitoral && !politicaDocumento.trim()) {
+        return 'Campanha eleitoral pelo Monitor exige o CPF ou CNPJ do candidato.'
+      }
+      if (eleitoral && !politicaPartido.trim()) {
+        return 'Campanha eleitoral pelo Monitor exige o partido, coligação ou federação.'
+      }
     }
     return null
   }
@@ -503,6 +529,10 @@ export function Assistente({
             ? agendado.toISOString()
             : null,
         perfil,
+        politica:
+          eleitoral && peloMonitor
+            ? { documento: politicaDocumento.trim(), partido: politicaPartido.trim() }
+            : null,
       })
     })
   }
@@ -791,11 +821,45 @@ export function Assistente({
                     </span>
                   </span>
                 </label>
-                {eleitoral ? (
+                {eleitoral && !peloMonitor ? (
                   <p className="mt-3 rounded-[12px] bg-paper-alt px-3.5 py-2.5 text-[.82rem] text-navy">
                     Vai ser acrescentado ao fim da mensagem:{' '}
                     <b className="font-semibold">{frase}</b>
                   </p>
+                ) : null}
+
+                {eleitoral && peloMonitor ? (
+                  <div className="mt-3 space-y-4">
+                    <Aviso tom="alerta" titulo="Quem acrescenta a frase de saída é o Monitor">
+                      Neste canal a linha de descadastro é a deles — a que manda{' '}
+                      <b>responder 2</b>, que é a palavra que a plataforma deles escuta. Por isso
+                      eles exigem o documento do candidato e o partido: sem esses dados a campanha
+                      não pode ser declarada política, e sem a declaração ela sai sem a frase que a
+                      lei manda ter.
+                    </Aviso>
+
+                    <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                      <Campo
+                        rotulo="CPF ou CNPJ do candidato"
+                        obrigatorio
+                        dica="Do próprio candidato, ou o CNPJ da campanha registrada no TSE. De assessor ou agência não vale."
+                      >
+                        <Entrada
+                          value={politicaDocumento}
+                          onChange={(e) => setPoliticaDocumento(e.target.value)}
+                          placeholder="12.345.678/0001-95"
+                        />
+                      </Campo>
+                      <Campo rotulo="Partido, coligação ou federação" obrigatorio>
+                        <Entrada
+                          value={politicaPartido}
+                          onChange={(e) => setPoliticaPartido(e.target.value)}
+                          maxLength={60}
+                          placeholder="Sigla ou nome"
+                        />
+                      </Campo>
+                    </div>
+                  </div>
                 ) : null}
               </div>
 

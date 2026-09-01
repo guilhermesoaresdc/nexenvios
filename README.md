@@ -67,6 +67,11 @@ Cada uma dessas regras tem teste em `tests/acessos.integracao.test.ts`.
 
 ## Entrega delegada — Monitor de Envios
 
+O Monitor entrega por WhatsApp **não oficial** (chip), não pela Meta Cloud API —
+por isso ele é provedor de `whatsapp_nao_oficial`. É também o que explica a régua
+dura de nome de perfil: nome reprovado derruba o chip no meio do disparo, coisa
+que não acontece numa conta oficial verificada.
+
 Todo canal da Nex é mensagem a mensagem: o motor reserva a linha, manda uma,
 marca o resultado. O **Monitor de Envios** funciona ao contrário e por isso é o
 único provedor com caminho próprio no código.
@@ -141,6 +146,11 @@ sozinha: os dois conjuntos são disjuntos do lado deles (a mensagem SAI de
 "enviada" ao ser confirmada), e o exemplo da documentação fecha — 433 + 354 =
 787. Cobrar só por `enviadas` cobraria a menos, e o número encolheria conforme
 as confirmações chegassem.
+
+**Campanha eleitoral só sai declarada.** O corpo vai cru neste canal, então a
+frase de descadastro é a deles — e eles só a acrescentam com `politica=true`.
+Sem a declaração (documento do candidato e partido) a campanha sairia sem
+*nenhuma* saída, contra o art. 57-G. A criação é recusada, na tela e na API.
 
 Resposta `2` descadastra. É a palavra que a frase deles manda usar em campanha
 política, e mensagem para quem já pediu para sair custa R$ 100 por mensagem ao
