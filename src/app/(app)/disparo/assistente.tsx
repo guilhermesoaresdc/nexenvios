@@ -370,7 +370,16 @@ export function Assistente({
   const canalEscolhido = canais.find((c) => c.id === configId) ?? null
   const canal = canalEscolhido?.canal ?? null
   const peloMonitor = canalEscolhido?.provedor === 'monitor_envios'
-  const perfil = peloMonitor
+  /*
+   * SMS não tem perfil.
+   *
+   * Nome e foto são o que o destinatário vê no WhatsApp; num SMS ele vê o
+   * remetente da operadora e mais nada. Exigi-los aqui era pedir trabalho que
+   * não muda o que chega — a documentação do Monitor os marca como
+   * obrigatórios, mas ela só descreve campanha de WhatsApp.
+   */
+  const exigePerfil = peloMonitor && canalEscolhido?.canal !== 'sms'
+  const perfil = exigePerfil
     ? { nome: perfilNome.trim(), fotoUrl: perfilFoto.trim(), nome2: perfilNome2.trim(), fotoUrl2: perfilFoto2.trim() }
     : null
   // A régua da Meta, conferida enquanto a pessoa digita. Nome reprovado trava
@@ -513,7 +522,7 @@ export function Assistente({
       return `Faltam ${moeda(faltaEmCreditos)} em créditos para este disparo. Peça uma recarga ou reduza o público.`
     }
     if (quando === 'agendar' && !agendarEm) return 'Escolha a data e a hora do agendamento.'
-    if (peloMonitor && perfil) {
+    if (exigePerfil && perfil) {
       if (!perfil.nome || !perfil.fotoUrl) return 'Preencha o perfil principal — nome e foto.'
       if (!perfil.nome2 || !perfil.fotoUrl2) return 'Preencha o perfil reserva — nome e foto.'
       if (perfil.nome.toLowerCase() === perfil.nome2.toLowerCase()) {
@@ -1213,22 +1222,17 @@ export function Assistente({
             </Pad>
             )}
 
-            {peloMonitor ? (
+            {exigePerfil ? (
               <Pad>
                 <PadTitulo
-                  titulo={canal === 'sms' ? 'Perfil exigido pelo Monitor' : 'Perfil no WhatsApp'}
-                  descricao={
-                    canal === 'sms'
-                      ? 'No SMS ninguém vê nome nem foto — quem recebe vê o remetente da operadora. Mas o Monitor de Envios exige os dois perfis em toda campanha, qualquer que seja a entrega, e recusa a submissão sem eles.'
-                      : 'É o nome e a foto que quem recebe vê. O Monitor de Envios exige os dois perfis: o principal e um reserva, para a equipe deles trocar se a Meta reprovar o primeiro.'
-                  }
+                  titulo="Perfil no WhatsApp"
+                  descricao="É o nome e a foto que quem recebe vê. O Monitor de Envios exige os dois perfis: o principal e um reserva, para a equipe deles trocar se a Meta reprovar o primeiro."
                 />
                 <div className="space-y-4 p-6">
                   <Aviso tom="info">
                     O nome precisa ser comercial — <b>Móveis Silva</b>, <b>Padaria Aurora</b>. Frase,
                     promessa, &quot;Oficial&quot; ou termo de aposta fazem a Meta banir o número, e o
-                    Monitor recusa antes disso — a régua vale para toda campanha que passa por
-                    eles.{' '}
+                    Monitor recusa antes disso.{' '}
                     <Link href="/canais/nome-de-perfil" className="font-semibold underline">
                       Ver as regras e testar um nome
                     </Link>

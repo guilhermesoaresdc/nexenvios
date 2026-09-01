@@ -64,6 +64,8 @@ export type DadosDaSubmissao = {
   campanhaId: string
   orgId: string
   nome: string
+  /** O canal da campanha: só o WhatsApp exige perfil. */
+  canal?: string
   corpo: string
   fontes: Fonte[]
   configId: string
@@ -172,6 +174,7 @@ export async function entregarAoMonitor(dados: DadosDaSubmissao): Promise<Result
 
   const submissao = {
     nome: dados.nome,
+    canal: dados.canal,
     /*
      * O corpo vai CRU, sem a nossa frase eleitoral.
      *

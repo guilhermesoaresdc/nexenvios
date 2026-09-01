@@ -793,13 +793,13 @@ cenario('Monitor de Envios', () => {
       .values({ orgId, channel: 'sms', price: '0.07' })
       .onConflictDoNothing()
 
+    // SEM perfil de propósito: em SMS ninguém vê nome nem foto.
     const criada = await servico.criarCampanha(orgId, null, {
       nome: 'SMS de teste',
       canal: 'sms',
       configId: canalSms!.id,
       corpo: 'Mensagem curta de SMS',
       fontes: [{ tipo: 'todos', chave: 'todos', rotulo: 'Base inteira' }],
-      perfil,
     })
 
     expect(criada.ok).toBe(true)
@@ -821,6 +821,30 @@ cenario('Monitor de Envios', () => {
 
     // E o preço cobrado é o do canal SMS, não o do WhatsApp.
     expect(Number(campanha!.unitPrice)).toBeCloseTo(0.07, 4)
+
+    /*
+     * O POST não pode carregar campo de perfil vazio.
+     *
+     * String em branco é diferente de campo ausente: é o que faz o outro lado
+     * responder "campo obrigatório vazio" em vez de simplesmente aceitar.
+     */
+    expect(estado.recebeuUpload?.perfil_nome).toBeUndefined()
+    expect(estado.recebeuUpload?.foto_perfil).toBeUndefined()
+  })
+
+  it('a régua do perfil continua valendo no WhatsApp', async () => {
+    const { conferirSubmissao } = await import('@/lib/channels/monitor')
+    const vazio = { nome: '', fotoUrl: '', nome2: '', fotoUrl2: '' }
+    const base = { nomeArquivo: 'b.csv', conteudo: 'telefone\n5511' }
+
+    // Sem canal declarado ou em WhatsApp: perfil é obrigatório, como antes.
+    expect(conferirSubmissao({ nome: 'x', copy: 'oi', perfil: vazio, base })).toMatch(/dois nomes/)
+    expect(
+      conferirSubmissao({ nome: 'x', copy: 'oi', perfil: vazio, base, canal: 'whatsapp_nao_oficial' }),
+    ).toMatch(/dois nomes/)
+
+    // Em SMS, não.
+    expect(conferirSubmissao({ nome: 'x', copy: 'oi', perfil: vazio, base, canal: 'sms' })).toBeNull()
   })
 
   it('recusa copy acima do limite com mídia', async () => {

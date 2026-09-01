@@ -55,6 +55,15 @@ export type Perfil = {
 export type SubmissaoDaCampanha = {
   nome: string
   copy: string
+  /**
+   * O canal da campanha. Só o WhatsApp tem perfil.
+   *
+   * Nome e foto são o que o destinatário vê no aparelho; num SMS ele vê o
+   * remetente da operadora e mais nada. A documentação deles marca
+   * `perfil_nome` e `foto_perfil` como obrigatórios, mas descreve só campanha
+   * de WhatsApp — e exigir o que não aparece é pedir trabalho à toa.
+   */
+  canal?: string
   perfil: Perfil
   /** CSV já montado com os números. */
   base: { nomeArquivo: string; conteudo: string }
@@ -112,7 +121,8 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
   if (nome.length > LIMITES.nomeCampanha) {
     return `O nome do disparo passa de ${LIMITES.nomeCampanha} caracteres.`
   }
-  if (!perfil.nome.trim() || !perfil.nome2.trim()) {
+  const semPerfil = dados.canal === 'sms'
+  if (!semPerfil && (!perfil.nome.trim() || !perfil.nome2.trim())) {
     return 'O Monitor de Envios exige dois nomes de perfil: o principal e o reserva.'
   }
   for (const [rotulo, valor] of [
@@ -123,7 +133,10 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
       return `O nome de perfil ${rotulo} passa de ${LIMITES.perfilNome} caracteres.`
     }
   }
-  if (perfil.nome.trim().toLowerCase() === perfil.nome2.trim().toLowerCase()) {
+  if (
+    perfil.nome.trim() &&
+    perfil.nome.trim().toLowerCase() === perfil.nome2.trim().toLowerCase()
+  ) {
     return 'O perfil reserva precisa ter um nome diferente do principal.'
   }
 
@@ -137,13 +150,14 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
     ['principal', perfil.nome],
     ['reserva', perfil.nome2],
   ] as const) {
+    if (!valor.trim()) continue
     const veredito = conferirNomeDePerfil(valor)
     if (!veredito.ok) return `Perfil ${rotulo} — ${veredito.motivo}`
   }
-  if (!perfil.fotoUrl || !perfil.fotoUrl2) {
+  if (!semPerfil && (!perfil.fotoUrl || !perfil.fotoUrl2)) {
     return 'O Monitor de Envios exige a foto dos dois perfis.'
   }
-  if (perfil.fotoUrl === perfil.fotoUrl2) {
+  if (perfil.fotoUrl && perfil.fotoUrl === perfil.fotoUrl2) {
     return 'A foto do perfil reserva precisa ser diferente da do principal.'
   }
 
@@ -223,8 +237,10 @@ export async function submeterCampanha(
   const form = new FormData()
   form.set('api_token', credencial.apiToken)
   form.set('nome_campanha', dados.nome)
-  form.set('perfil_nome', dados.perfil.nome)
-  form.set('perfil_nome_2', dados.perfil.nome2)
+  // Campo de perfil vazio não vai: mandar string em branco é diferente de
+  // não mandar, e é o que dá 400 por "campo obrigatório vazio".
+  if (dados.perfil.nome) form.set('perfil_nome', dados.perfil.nome)
+  if (dados.perfil.nome2) form.set('perfil_nome_2', dados.perfil.nome2)
   form.set('copy_texto', dados.copy)
   if (dados.referencia) form.set('nome_arquivo_original', dados.referencia)
   if (dados.observacoes) form.set('observacoes', dados.observacoes)
@@ -239,16 +255,20 @@ export async function submeterCampanha(
   }
 
   try {
-    form.set(
-      'foto_perfil',
-      await baixar(dados.perfil.fotoUrl, 'a foto do perfil'),
-      nomeDoArquivo(dados.perfil.fotoUrl, 'perfil.png'),
-    )
-    form.set(
-      'foto_perfil_2',
-      await baixar(dados.perfil.fotoUrl2, 'a foto do perfil reserva'),
-      nomeDoArquivo(dados.perfil.fotoUrl2, 'perfil-2.png'),
-    )
+    if (dados.perfil.fotoUrl) {
+      form.set(
+        'foto_perfil',
+        await baixar(dados.perfil.fotoUrl, 'a foto do perfil'),
+        nomeDoArquivo(dados.perfil.fotoUrl, 'perfil.png'),
+      )
+    }
+    if (dados.perfil.fotoUrl2) {
+      form.set(
+        'foto_perfil_2',
+        await baixar(dados.perfil.fotoUrl2, 'a foto do perfil reserva'),
+        nomeDoArquivo(dados.perfil.fotoUrl2, 'perfil-2.png'),
+      )
+    }
     if (dados.mediaUrl) {
       form.set(
         'midia_campanha',

@@ -326,6 +326,7 @@ export async function criarCampanha(
       campanhaId: campanha.id,
       orgId,
       nome: dados.nome,
+      canal: dados.canal,
       // Cru: quem acrescenta a frase de descadastro é a plataforma deles, com
       // a palavra que os robôs deles realmente escutam.
       corpo: dados.corpo,
