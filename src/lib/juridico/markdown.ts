@@ -157,7 +157,25 @@ function celulas(linha: string): string[] {
     .map((c) => c.trim())
 }
 
-const SEPARADOR_DE_TABELA = /^\|?[\s:|-]*-[\s:|-]*\|?$/
+/*
+ * A linha `| --- | --- |` que separa cabeçalho de corpo.
+ *
+ * Era `/^\|?[\s:|-]*-[\s:|-]*\|?$/`, e o `-` aparecia DENTRO da classe dos
+ * dois lados: para uma linha só de hífens o motor tinha exponencialmente
+ * muitas formas de dividir a mesma correspondência, e uma linha longa que não
+ * casa fazia a expressão andar em círculos. Uma classe só, mais a exigência
+ * de conter um hífen, decide o mesmo em tempo linear.
+ */
+const SO_TRACOS = /^[\s:|-]+$/
+
+function eSeparadorDeTabela(linha: string): boolean {
+  return linha.length > 0 && linha.includes('-') && SO_TRACOS.test(linha)
+}
+
+/** Régua horizontal: três ou mais do mesmo sinal, sozinhos na linha. */
+function eRegua(linha: string): boolean {
+  return /^(-{3,}|_{3,}|\*{3,})$/.test(linha)
+}
 
 export function lerMarkdown(fonte: string): Bloco[] {
   const linhas = fonte.replace(/\r\n?/g, '\n').split('\n')
@@ -189,19 +207,27 @@ export function lerMarkdown(fonte: string): Bloco[] {
      * exportação — não separa nada. Desenhar um traço solto embaixo do último
      * parágrafo pareceria conteúdo cortado.
      */
-    if (/^-{3,}$/.test(cru) || /^_{3,}$/.test(cru) || /^\*{3,}$/.test(cru)) {
+    if (eRegua(cru)) {
       fecharParagrafo()
       i++
       continue
     }
 
-    const titulo = /^(#{1,3})\s+(.*)$/.exec(cru)
+    const titulo = /^(#{1,6})\s+(.*)$/.exec(cru)
     if (titulo) {
       fecharParagrafo()
       const texto = titulo[2]!.trim()
       blocos.push({
         tipo: 'titulo',
-        nivel: titulo[1]!.length as 1 | 2 | 3,
+        /*
+         * Do h4 para baixo tudo vira nível 3.
+         *
+         * Antes só `#{1,3}` contava como título: um `#### 4.1.2` viraria
+         * parágrafo COM os quatro jogos-da-velha à mostra na tela. Nenhum dos
+         * dois documentos tem h4 hoje — mas o próximo pode ter, e o defeito
+         * apareceria publicado, não no build.
+         */
+        nivel: Math.min(titulo[1]!.length, 3) as 1 | 2 | 3,
         id: apelido(texto),
         trechos: lerInline(texto),
       })
@@ -210,7 +236,7 @@ export function lerMarkdown(fonte: string): Bloco[] {
     }
 
     // Tabela: linha com barras seguida da linha de separação.
-    if (cru.startsWith('|') && SEPARADOR_DE_TABELA.test(linhas[i + 1]?.trim() ?? '')) {
+    if (cru.startsWith('|') && eSeparadorDeTabela(linhas[i + 1]?.trim() ?? '')) {
       fecharParagrafo()
       const cabecalho = celulas(cru).map(lerInline)
       i += 2
@@ -240,7 +266,25 @@ export function lerMarkdown(fonte: string): Bloco[] {
         i++
         while (i < linhas.length) {
           const proxima = linhas[i]!.trim()
-          if (proxima === '' || /^([-*+]|\d+\.)\s+/.test(proxima) || /^#{1,3}\s/.test(proxima)) break
+          /*
+           * Onde a alínea termina.
+           *
+           * A versão anterior só parava em linha vazia, outro marcador ou
+           * `#{1,3}` — e engolia o que viesse colado depois. Uma tabela logo
+           * abaixo de uma lista, sem linha em branco entre elas, virava texto
+           * dentro da última alínea: as oito linhas da tabela de bases legais
+           * sumiriam da página, emendadas numa frase. É o pior defeito
+           * possível aqui, porque a tela continua parecendo íntegra.
+           */
+          if (
+            proxima === '' ||
+            /^([-*+]|\d+\.)\s+/.test(proxima) ||
+            /^#{1,6}\s/.test(proxima) ||
+            proxima.startsWith('|') ||
+            eRegua(proxima)
+          ) {
+            break
+          }
           pedacos.push(proxima)
           i++
         }

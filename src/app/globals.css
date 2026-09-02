@@ -70,8 +70,16 @@
     letter-spacing: -0.01em;
   }
 
+  /*
+   * O anel de foco em azul, não em ciano.
+   *
+   * O ciano tem 2,29:1 contra o fundo claro do produto — abaixo dos 3:1 que a
+   * WCAG exige de indicador de foco (SC 1.4.11). Quem navega por teclado
+   * simplesmente não via onde estava. O azul passa nos DOIS fundos que
+   * existem aqui: 3,89:1 sobre o papel, 3,74:1 sobre o azul-marinho.
+   */
   :focus-visible {
-    outline: 3px solid var(--color-cyan);
+    outline: 3px solid var(--color-blue);
     outline-offset: 3px;
     border-radius: 4px;
   }

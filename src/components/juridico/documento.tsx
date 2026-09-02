@@ -31,7 +31,17 @@ function Texto({ trechos }: { trechos: Trecho[] }) {
             key={i}
             href={t.href}
             {...(externo ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-            className="font-medium text-blue underline decoration-blue/30 underline-offset-2 transition-colors hover:decoration-blue"
+            /*
+             * `blue-dark` e não `blue`: o azul de ação tem 3,89:1 contra o
+             * papel, abaixo dos 4,5:1 que a WCAG pede para texto. Num
+             * documento que a lei obriga a ser compreensível, link ilegível
+             * não é detalhe de estilo.
+             *
+             * `break-words` porque o texto está cheio de e-mail e URL sem
+             * espaço: em 320px com texto ampliado, uma palavra dessas empurra
+             * a PÁGINA inteira para o lado.
+             */
+            className="font-medium break-words text-blue-dark underline decoration-blue-dark/30 underline-offset-2 transition-colors hover:decoration-blue-dark"
           >
             {conteudo}
           </a>
@@ -113,7 +123,21 @@ export function Corpo({ blocos }: { blocos: Bloco[] }) {
                * não cabe num celular. Deixar a página inteira rolar de lado
                * para acomodá-la estraga a leitura de tudo que vem antes.
                */
-              <div key={i} className="-mx-1 overflow-x-auto rounded-[12px] border border-line">
+              /*
+               * `tabIndex` e `role` porque a região rola.
+               *
+               * Quem usa teclado não tem como rolar um quadro que não recebe
+               * foco — a coluna "Base legal" ficava inalcançável, e é onde
+               * está a base legal de cada tratamento. O nome acessível diz o
+               * que é a região antes de a pessoa entrar nela.
+               */
+              <div
+                key={i}
+                tabIndex={0}
+                role="region"
+                aria-label="Tabela — role para o lado para ver todas as colunas"
+                className="-mx-1 overflow-x-auto rounded-[12px] border border-line"
+              >
                 <table className="w-full min-w-[520px] border-collapse text-left">
                   <thead>
                     <tr className="bg-paper-alt">

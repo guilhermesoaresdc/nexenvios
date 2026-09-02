@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { apelido, lerInline, lerMarkdown, textoCorrido } from '@/lib/juridico/markdown'
+import type { Bloco, Trecho } from '@/lib/juridico/markdown'
 import { DOCUMENTOS, PRIVACIDADE, TERMOS } from '@/lib/juridico/documentos'
 
 /**
@@ -109,6 +110,40 @@ describe('blocos', () => {
     expect(lerMarkdown('Último parágrafo.\n\n---\n').map((b) => b.tipo)).toEqual(['paragrafo'])
   })
 
+  /*
+   * Onde a alínea termina.
+   *
+   * Uma tabela colada numa lista, sem linha em branco entre elas, era engolida
+   * inteira pela última alínea: as oito linhas da tabela de bases legais
+   * virariam texto corrido dentro de uma frase, e a tela continuaria parecendo
+   * íntegra. É o defeito mais caro que este arquivo pode ter.
+   */
+  it('a lista não engole a tabela que vem colada nela', () => {
+    const blocos = lerMarkdown(
+      ['- alínea única;', '| Finalidade | Base legal |', '| --- | --- |', '| Enviar | art. 7º, V |'].join('\n'),
+    )
+    expect(blocos.map((b) => b.tipo)).toEqual(['lista', 'tabela'])
+    if (blocos[1]?.tipo !== 'tabela') throw new Error('esperava tabela')
+    expect(blocos[1].linhas).toHaveLength(1)
+  })
+
+  it('a lista não engole a régua nem o título que vêm colados', () => {
+    expect(lerMarkdown('- alínea;\n---\n## 5. Outra seção').map((b) => b.tipo)).toEqual([
+      'lista',
+      'titulo',
+    ])
+    expect(lerMarkdown('- alínea;\n#### 4.1.2 Subitem').map((b) => b.tipo)).toEqual([
+      'lista',
+      'titulo',
+    ])
+  })
+
+  it('título de quarto nível vira título, e não parágrafo com "####" à mostra', () => {
+    const [bloco] = lerMarkdown('#### 4.1.2 Subitem jurídico')
+    expect(bloco).toMatchObject({ tipo: 'titulo', nivel: 3 })
+    expect(textoCorrido([bloco!])).toBe('4.1.2 Subitem jurídico')
+  })
+
   it('dá endereço estável às seções', () => {
     expect(apelido('9. Seus direitos como titular')).toBe('9-seus-direitos-como-titular')
     expect(apelido('## Transferência internacional')).toBe('transferencia-internacional')
@@ -116,64 +151,193 @@ describe('blocos', () => {
 })
 
 /**
- * A fidelidade. Se um destes quebrar, alguma coisa do documento não está no ar.
+ * A fidelidade.
+ *
+ * A primeira versão disto passava por prova e não era. Ela espremia a fonte
+ * inteira com `replace(/\s+/g, ' ')` e perguntava se cada bloco rendido
+ * estava CONTIDO nela — e espremer dissolve as linhas em branco, que é
+ * justamente o que separa um bloco do outro. Numa fonte virada em linha
+ * única, qualquer emenda de dois trechos vizinhos está contida por
+ * construção. Uma revisão adversarial provou seis defeitos passando: emendar
+ * dois parágrafos, emendar o fim de uma seção no título da seguinte, duplicar
+ * um parágrafo, perder o negrito de "Dados sensíveis:", transformar as dez
+ * alíneas do art. 18 em dez parágrafos soltos, e mover a seção 5 para depois
+ * da 12. O comentário de então afirmava cobrir exatamente esses casos.
+ *
+ * O que passa a valer é uma DERIVAÇÃO INDEPENDENTE: o teste monta, com o seu
+ * próprio código, a sequência de unidades que a fonte descreve — tipo, texto
+ * e negritos — e exige igualdade com a sequência que o leitor produziu.
+ * Igualdade de sequência, não de conjunto e não de substring: por isso pega
+ * perda, invenção, emenda, duplicação, troca de ordem e lista virando
+ * parágrafo, que são coisas diferentes e todas silenciosas na tela.
+ *
+ * Dois parsers dizendo a mesma coisa não é duplicação à toa: é o único jeito
+ * de um teste discordar do código que ele testa.
  */
+
+type Unidade = {
+  tipo: 'titulo' | 'item' | 'paragrafo'
+  texto: string
+  /** Os trechos que a fonte marcou com `**`, na ordem. */
+  fortes: string[]
+}
+
+const REGUA = /^(-{3,}|_{3,}|\*{3,})$/
+const MARCADOR = /^([-*+]|\d+\.)\s+(.*)$/
+const TITULO = /^(#{1,6})\s+(.*)$/
+
+/** Tira `**` e `[rótulo](url)`, guardando o que estava em negrito. */
+function semMarcacao(bruto: string): { texto: string; fortes: string[] } {
+  const fortes: string[] = []
+  const texto = bruto
+    .replace(/\*\*([^*]+)\*\*/g, (_, dentro: string) => {
+      fortes.push(dentro)
+      return dentro
+    })
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, rotulo: string) => rotulo)
+  return { texto, fortes }
+}
+
+/** O que a FONTE diz que a página deve ter. Tabela fica de fora — vai à parte. */
+function unidadesDaFonte(fonte: string): Unidade[] {
+  const linhas = fonte.replace(/\r\n?/g, '\n').split('\n')
+  const unidades: Unidade[] = []
+  let paragrafo: string[] = []
+
+  const fechar = () => {
+    if (paragrafo.length === 0) return
+    const { texto, fortes } = semMarcacao(paragrafo.join(' '))
+    unidades.push({ tipo: 'paragrafo', texto, fortes })
+    paragrafo = []
+  }
+
+  let i = 0
+  while (i < linhas.length) {
+    const l = linhas[i]!.trim()
+
+    if (l === '' || REGUA.test(l)) {
+      fechar()
+      i++
+      continue
+    }
+
+    const t = TITULO.exec(l)
+    if (t) {
+      fechar()
+      const { texto, fortes } = semMarcacao(t[2]!.trim())
+      unidades.push({ tipo: 'titulo', texto, fortes })
+      i++
+      continue
+    }
+
+    // Tabela inteira: pulada aqui, conferida no teste próprio dela.
+    if (l.startsWith('|')) {
+      fechar()
+      while (i < linhas.length && linhas[i]!.trim().startsWith('|')) i++
+      continue
+    }
+
+    const m = MARCADOR.exec(l)
+    if (m) {
+      fechar()
+      const pedacos = [m[2]!]
+      i++
+      while (i < linhas.length) {
+        const p = linhas[i]!.trim()
+        if (p === '' || MARCADOR.test(p) || TITULO.test(p) || p.startsWith('|') || REGUA.test(p)) break
+        pedacos.push(p)
+        i++
+      }
+      const { texto, fortes } = semMarcacao(pedacos.join(' '))
+      unidades.push({ tipo: 'item', texto, fortes })
+      continue
+    }
+
+    paragrafo.push(l)
+    i++
+  }
+
+  fechar()
+  return unidades
+}
+
+/** O mesmo, lido do que o leitor devolveu. */
+function unidadesDoRender(blocos: Bloco[]): Unidade[] {
+  /*
+   * Negritos vizinhos são juntados de volta.
+   *
+   * `**Site: https://nexenvios.com.br**` vira DOIS trechos no leitor — o texto
+   * e o link, ambos `forte` — enquanto a fonte tem um `**...**` só. Sem
+   * remendar isso o teste acusaria diferença onde não há.
+   */
+  const ler = (trechos: Trecho[]): { texto: string; fortes: string[] } => {
+    const fortes: string[] = []
+    let corrente = ''
+    for (const t of trechos) {
+      if (t.forte) corrente += t.texto
+      else if (corrente) {
+        fortes.push(corrente)
+        corrente = ''
+      }
+    }
+    if (corrente) fortes.push(corrente)
+    return { texto: trechos.map((t) => t.texto).join(''), fortes }
+  }
+
+  return blocos.flatMap((b): Unidade[] => {
+    if (b.tipo === 'titulo') return [{ tipo: 'titulo', ...ler(b.trechos) }]
+    if (b.tipo === 'paragrafo') return [{ tipo: 'paragrafo', ...ler(b.trechos) }]
+    if (b.tipo === 'lista') return b.itens.map((i) => ({ tipo: 'item' as const, ...ler(i) }))
+    return []
+  })
+}
+
 describe.each(DOCUMENTOS.map((d) => [d.titulo, d] as const))('%s', (_titulo, doc) => {
   const blocos = lerMarkdown(doc.fonte)
-  const rendido = textoCorrido(blocos)
 
-  it('publica cada linha da fonte, sem perder nenhuma', () => {
-    const perdidas = doc.fonte
+  it('publica exatamente o que a fonte descreve — nada a mais, nada a menos, na mesma ordem', () => {
+    expect(unidadesDoRender(blocos)).toEqual(unidadesDaFonte(doc.fonte))
+  })
+
+  it('a tabela sai com todas as linhas e todas as células', () => {
+    const daFonte = doc.fonte
       .split('\n')
       .map((l) => l.trim())
-      .filter((l) => l && !/^[-_*]{3,}$/.test(l))
+      .filter((l) => l.startsWith('|'))
+      .filter((l) => !/^\|?[\s:|-]+$/.test(l) || !l.includes('-') || /[a-zA-Z]/.test(l))
       .map((l) =>
-        // Tira só a marcação; o que sobra é texto e tem que estar na página.
         l
-          .replace(/^#{1,3}\s+/, '')
-          .replace(/^([-*+]|\d+\.)\s+/, '')
-          .replace(/\*\*/g, '')
           .replace(/^\|/, '')
           .replace(/\|$/, '')
           .split('|')
-          .map((c) => c.trim())
-          .join(' ')
-          .trim(),
+          .map((c) => semMarcacao(c.trim()).texto),
       )
-      .filter((l) => l && !/^[\s:-]+$/.test(l))
-      .filter((l) => !rendido.includes(l))
 
-    expect(perdidas).toEqual([])
+    const daTela = blocos.flatMap((b) =>
+      b.tipo === 'tabela'
+        ? [b.cabecalho, ...b.linhas].map((linha) =>
+            linha.map((celula) => celula.map((t) => t.texto).join('')),
+          )
+        : [],
+    )
+
+    expect(daTela).toEqual(daFonte)
   })
 
-  /*
-   * O contrário do teste anterior, e tão importante quanto.
-   *
-   * "Não perdeu nada" passaria também se a página duplicasse um parágrafo ou
-   * emendasse o fim de uma cláusula no começo da seguinte — e um documento
-   * jurídico que promete duas vezes coisas diferentes é pior do que um
-   * incompleto. Cada bloco rendido tem que existir, inteiro, na fonte.
-   *
-   * A tabela fica de fora porque suas células são unidas por espaço aqui e
-   * separadas por barra lá: a comparação seria sobre a formatação, não sobre
-   * o conteúdo, e é a fonte que manda no conteúdo.
-   */
-  it('não inventa nem emenda: cada bloco existe inteiro na fonte', () => {
-    const espremer = (s: string) => s.replace(/\s+/g, ' ').trim()
-    const naFonte = espremer(doc.fonte.replace(/\*\*/g, '').replace(/^#{1,3}\s+/gm, ''))
-
-    const soltos = blocos.flatMap((b) => {
-      if (b.tipo === 'titulo' || b.tipo === 'paragrafo') {
-        return [espremer(b.trechos.map((t) => t.texto).join(''))]
-      }
-      if (b.tipo === 'lista') {
-        return b.itens.map((i) => espremer(i.map((t) => t.texto).join('')))
-      }
-      return []
+  it('todo link tem destino, e o destino existe na fonte', () => {
+    const hrefs = blocos.flatMap(function achar(b): string[] {
+      const de = (t: Trecho[]) => t.flatMap((x) => (x.href ? [x.href] : []))
+      if (b.tipo === 'titulo' || b.tipo === 'paragrafo') return de(b.trechos)
+      if (b.tipo === 'lista') return de(b.itens.flat())
+      return de([...b.cabecalho, ...b.linhas.flat()].flat())
     })
 
-    expect(soltos.length).toBeGreaterThan(20)
-    expect(soltos.filter((t) => t && !naFonte.includes(t))).toEqual([])
+    expect(hrefs.length).toBeGreaterThan(0)
+    for (const href of hrefs) {
+      expect(href).toMatch(/^(https?:\/\/|mailto:)\S+$/)
+      // O endereço não pode ter sido inventado: sai literal da fonte.
+      expect(doc.fonte).toContain(href.replace(/^mailto:/, ''))
+    }
   })
 
   it('tem versão, data válida e rota absoluta', () => {
@@ -183,29 +347,16 @@ describe.each(DOCUMENTOS.map((d) => [d.titulo, d] as const))('%s', (_titulo, doc
     expect(doc.rota.startsWith('/')).toBe(true)
   })
 
-  it('abre com um H1 e organiza o resto em seções', () => {
+  it('abre com um H1 e organiza o resto em seções com endereço próprio', () => {
     expect(blocos[0]).toMatchObject({ tipo: 'titulo', nivel: 1 })
-    const secoes = blocos.filter((b) => b.tipo === 'titulo' && b.nivel === 2)
+    const secoes = blocos.filter(
+      (b): b is Extract<Bloco, { tipo: 'titulo' }> => b.tipo === 'titulo' && b.nivel === 2,
+    )
     expect(secoes.length).toBeGreaterThanOrEqual(10)
     // Endereço duplicado faria dois links do índice caírem no mesmo lugar.
-    const ids = secoes.map((s) => (s.tipo === 'titulo' ? s.id : ''))
+    const ids = secoes.map((s) => s.id)
     expect(new Set(ids).size).toBe(ids.length)
-  })
-
-  it('todo link tem destino utilizável', () => {
-    const hrefs = blocos.flatMap(function achar(b): string[] {
-      if (b.tipo === 'titulo' || b.tipo === 'paragrafo') {
-        return b.trechos.flatMap((t) => (t.href ? [t.href] : []))
-      }
-      if (b.tipo === 'lista') {
-        return b.itens.flat().flatMap((t) => (t.href ? [t.href] : []))
-      }
-      return [...b.cabecalho, ...b.linhas.flat()]
-        .flat()
-        .flatMap((t) => (t.href ? [t.href] : []))
-    })
-    expect(hrefs.length).toBeGreaterThan(0)
-    for (const href of hrefs) expect(href).toMatch(/^(https?:\/\/|mailto:)\S+$/)
+    for (const id of ids) expect(id).not.toBe('')
   })
 })
 

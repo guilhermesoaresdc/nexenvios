@@ -3,11 +3,16 @@ import { PaginaJuridica } from '@/components/juridico/pagina'
 import { PRIVACIDADE } from '@/lib/juridico/documentos'
 
 /*
- * Estática e sem revalidação por tempo: o texto é constante do build. Uma nova
- * versão do documento é um deploy — e é assim que tem que ser, porque a data
- * de vigência e o que está no ar precisam contar a mesma história.
+ * Estática, mas revalidando uma vez por dia.
+ *
+ * O texto é constante do build — uma nova versão do documento é um deploy, e é
+ * assim que tem que ser, porque a data de vigência e o que está no ar precisam
+ * contar a mesma história. O que NÃO é constante é o ano do © no rodapé:
+ * com `force-static` ele ficava preso no ano do último deploy, e um aviso de
+ * copyright desatualizado num documento jurídico é o tipo de descuido que
+ * quem lê nota. Um dia é curto para o ano virar e longo para não custar nada.
  */
-export const dynamic = 'force-static'
+export const revalidate = 86400
 
 export const metadata: Metadata = {
   title: PRIVACIDADE.titulo,

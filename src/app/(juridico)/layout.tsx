@@ -18,7 +18,15 @@ export default function LayoutJuridico({ children }: { children: React.ReactNode
           <Link href="/" aria-label="Nex Envios — início">
             <Marca size={28} />
           </Link>
-          <nav aria-label="Documentos" className="flex items-center gap-5 text-[.86rem] font-medium">
+          {/*
+            `flex-wrap`: com o texto ampliado a 200% os dois títulos não cabem
+            lado a lado e estouravam a largura da tela, levando a página a
+            rolar de lado inteira.
+          */}
+          <nav
+            aria-label="Documentos"
+            className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-[.86rem] font-medium"
+          >
             {DOCUMENTOS.map((d) => (
               <Link
                 key={d.rota}
