@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Marca } from '@/components/ui/marca'
+import { DOCUMENTOS } from '@/lib/juridico/documentos'
 import {
   AoAparecer,
   AtalhoFormulario,
@@ -526,11 +527,38 @@ export default function Landing() {
                   </li>
                 </ul>
               </div>
+
+              {/*
+                Termos e Política no rodapé, em coluna própria.
+                A Meta pede o endereço da política no cadastro da conta do
+                WhatsApp Business, e o cliente que vai assinar procura os
+                termos aqui — não numa letra miúda embaixo do copyright.
+              */}
+              <div>
+                <h4 className="mb-4 font-mono text-[.72rem] font-semibold tracking-[.1em] text-[#8fa6d6] uppercase">
+                  Legal
+                </h4>
+                <ul className="flex flex-col gap-2.5">
+                  {DOCUMENTOS.map((d) => (
+                    <li key={d.rota}>
+                      <Link
+                        href={d.rota}
+                        className="text-[.94rem] text-[#dbe6fb] transition-colors hover:text-cyan"
+                      >
+                        {d.titulo}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
 
           <div className="mt-2 flex flex-wrap items-center justify-between gap-4 py-[26px] text-[.82rem] text-[#7186b3]">
-            <span>© {new Date().getFullYear()} Nex Envios. Todos os direitos reservados.</span>
+            <span>
+              © {new Date().getFullYear()} NEX CREATIVE LTDA · CNPJ 58.132.444/0001-60. Todos os
+              direitos reservados.
+            </span>
             <span>WhatsApp é uma marca registrada da Meta Platforms, Inc.</span>
           </div>
         </div>

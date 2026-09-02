@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Marca } from '@/components/ui/marca'
+import { DOCUMENTOS } from '@/lib/juridico/documentos'
 
 /**
  * A casca das telas de porta: entrar, recuperar senha, definir senha.
@@ -49,6 +50,19 @@ export default function LayoutPublico({ children }: { children: React.ReactNode 
             <Marca size={30} />
           </Link>
           {children}
+
+          {/*
+            Os documentos ficam à vista na porta de entrada.
+            Quem cria conta aceita os Termos ao entrar; ter que sair procurando
+            o que aceitou transforma o aceite em formalidade vazia.
+          */}
+          <p className="mt-10 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[.78rem] text-muted">
+            {DOCUMENTOS.map((d) => (
+              <Link key={d.rota} href={d.rota} className="transition-colors hover:text-navy">
+                {d.titulo}
+              </Link>
+            ))}
+          </p>
         </div>
       </main>
     </div>
