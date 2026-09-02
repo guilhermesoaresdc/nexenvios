@@ -366,6 +366,18 @@ export async function conferirCredencial(_anterior: Estado, form: FormData): Pro
     )
   }
 
+  /*
+   * O IP de saída, porque foi o que o suporte deles pediu.
+   *
+   * Eles mantêm lista de IPs autorizados e recusam quem está fora. Vem medido
+   * na hora, e não de uma configuração nossa, justamente porque não é fixo:
+   * conferir duas vezes e ver dois endereços é a resposta para "me passa seu
+   * IP" — não dá um, dá uma faixa.
+   */
+  if (r.ipDeSaida) {
+    partes.push(`Esta consulta saiu do IP ${r.ipDeSaida} (pode mudar a cada chamada).`)
+  }
+
   if (r.saldo !== null) {
     partes.push(`Saldo no Monitor: ${r.saldo.toLocaleString('pt-BR')} envio(s).`)
   } else {

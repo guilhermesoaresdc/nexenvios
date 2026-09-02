@@ -575,6 +575,8 @@ async function guardarRespostas(
 export type ConferenciaDaCredencial = {
   /** O que o Monitor enxerga nesta conta, e se as NOSSAS campanhas estão lá. */
   laDeles: { total: number; nossas: number; sumidas: string[] } | null
+  /** De onde esta chamada saiu, medido agora. É o que a whitelist deles vê. */
+  ipDeSaida: string | null
   /** A impressão do token guardado: 4 primeiros, 4 últimos e o tamanho. */
   impressao: string
   /** Saldo, quando a consulta por cabeçalho passou. */
@@ -613,6 +615,7 @@ export async function conferirCredencialDoMonitor(
 
   const { campanhasNoMonitor, conferirTokenNoUpload, impressaoDoToken, saldoNoMonitor } =
     await import('@/lib/channels/monitor')
+  const { enderecoDeSaida } = await import('@/lib/channels/saida')
 
   /*
    * Os DOIS caminhos, porque eles não são o mesmo.
@@ -623,7 +626,7 @@ export async function conferirCredencialDoMonitor(
    * morrendo com "Token inválido" — e mandava a operação discutir com o
    * suporte do outro lado sem dado nenhum na mão.
    */
-  const [saldo, upload] = await Promise.all([
+  const [saldo, upload, ipDeSaida] = await Promise.all([
     saldoNoMonitor(credencial).then(
       (v) => ({ ok: true as const, valor: v }),
       (e: unknown) => ({ ok: false as const, erro: e instanceof Error ? e.message : 'não respondeu' }),
@@ -632,6 +635,16 @@ export async function conferirCredencialDoMonitor(
       (v) => ({ ok: true as const, valor: v }),
       (e: unknown) => ({ ok: false as const, erro: e instanceof Error ? e.message : 'não respondeu' }),
     ),
+    /*
+     * De onde a chamada sai.
+     *
+     * O suporte deles pediu o IP para autorizar a conta, e a resposta não
+     * estava em lugar nenhum do produto. Vai junto da conferência porque é
+     * aqui que a pessoa vem quando o Monitor recusa alguma coisa — e porque
+     * duas conferências seguidas mostrando endereços diferentes já respondem
+     * a pergunta seguinte, a de se dá para autorizar um IP só.
+     */
+    enderecoDeSaida(),
   ])
 
   /*
@@ -664,6 +677,7 @@ export async function conferirCredencialDoMonitor(
 
   return {
     laDeles,
+    ipDeSaida,
     impressao: impressaoDoToken(credencial.apiToken),
     saldo: saldo.ok ? saldo.valor : null,
     erroDoSaldo: saldo.ok ? null : saldo.erro,
