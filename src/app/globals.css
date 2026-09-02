@@ -10,6 +10,7 @@
   --color-navy: #002058;
   --color-navy-deep: #000f33;
   --color-blue: #0078f8;
+  --color-blue-dark: #0060cf;
   --color-cyan: #00b0f8;
   --color-ink: #0b1220;
   --color-muted: #5c6b8a;
@@ -86,6 +87,11 @@
     animation: nex-pulse 2.2s infinite;
   }
 
+  /* Mesma pulsação, no azul de ação — o botão flutuante leva ao formulário. */
+  .pulsa-azul {
+    animation: nex-pulse-azul 2.2s infinite;
+  }
+
   .ticker {
     animation: nex-ticker 32s linear infinite;
   }
@@ -106,6 +112,19 @@
   }
   100% {
     box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+  }
+}
+
+
+@keyframes nex-pulse-azul {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 120, 248, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(0, 120, 248, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 120, 248, 0);
   }
 }
 

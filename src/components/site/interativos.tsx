@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/ui'
 import { Marca } from '@/components/ui/marca'
-import { IconeMenu, IconeWhatsapp } from './icones'
+import { IconeFormulario, IconeMenu } from './icones'
 
 /**
  * As três coisas da landing que precisam de navegador: o cabeçalho que muda
@@ -15,7 +15,7 @@ import { IconeMenu, IconeWhatsapp } from './icones'
  * observador entra em ação.
  */
 
-export function Cabecalho({ whatsapp }: { whatsapp: string }) {
+export function Cabecalho({ acao }: { acao: string }) {
   const [rolou, setRolou] = useState(false)
   const [aberto, setAberto] = useState(false)
 
@@ -80,13 +80,12 @@ export function Cabecalho({ whatsapp }: { whatsapp: string }) {
             Entrar
           </Link>
           <a
-            href={whatsapp}
-            target="_blank"
-            rel="noopener"
-            className="inline-flex items-center gap-2 rounded-full bg-wa px-[18px] py-[11px] text-[.86rem] font-bold text-white shadow-[0_12px_24px_-10px_rgba(37,211,102,.55)] transition-all hover:-translate-y-0.5 hover:bg-wa-dark max-[420px]:h-[42px] max-[420px]:w-[42px] max-[420px]:justify-center max-[420px]:p-0"
+            href={acao}
+            onClick={() => setAberto(false)}
+            className="inline-flex items-center gap-2 rounded-full bg-blue px-[18px] py-[11px] text-[.86rem] font-bold text-white shadow-[0_12px_24px_-10px_rgba(0,120,248,.55)] transition-all hover:-translate-y-0.5 hover:bg-blue-dark max-[420px]:h-[42px] max-[420px]:w-[42px] max-[420px]:justify-center max-[420px]:p-0"
           >
-            <IconeWhatsapp className="h-[19px] w-[19px] shrink-0" />
-            <span className="max-[420px]:hidden">Falar no WhatsApp</span>
+            <IconeFormulario className="h-[19px] w-[19px] shrink-0" />
+            <span className="max-[420px]:hidden">Solicitar proposta</span>
           </a>
           <button
             type="button"
@@ -100,6 +99,51 @@ export function Cabecalho({ whatsapp }: { whatsapp: string }) {
         </div>
       </div>
     </header>
+  )
+}
+
+/**
+ * O atalho flutuante para o formulário. Some quando o formulário está na tela:
+ * ali ele não teria função e ainda cobriria o botão "Voltar" do fluxo, que é
+ * fixo no mesmo canto de dentro do iframe.
+ *
+ * Sem JavaScript o botão fica visível o tempo todo — é um link, continua
+ * levando ao lugar certo.
+ */
+export function AtalhoFormulario({ alvo }: { alvo: string }) {
+  const [escondido, setEscondido] = useState(false)
+
+  useEffect(() => {
+    if (!('IntersectionObserver' in window)) return
+    const secao = document.querySelector(alvo)
+    if (!secao) return
+
+    const observador = new IntersectionObserver(
+      (entradas) => {
+        for (const entrada of entradas) setEscondido(entrada.isIntersecting)
+      },
+      { threshold: 0.12 },
+    )
+    observador.observe(secao)
+    return () => observador.disconnect()
+  }, [alvo])
+
+  return (
+    <a
+      href={alvo}
+      aria-label="Solicitar proposta"
+      aria-hidden={escondido}
+      tabIndex={escondido ? -1 : undefined}
+      className={cn(
+        'fixed right-[22px] bottom-[22px] z-[200] flex h-15 w-15 items-center justify-center rounded-full bg-blue text-white shadow-[0_14px_30px_-8px_rgba(0,120,248,.6)] transition-all max-sm:right-4 max-sm:bottom-4 max-sm:h-[54px] max-sm:w-[54px]',
+        escondido
+          ? 'pointer-events-none translate-y-3 opacity-0'
+          : 'opacity-100 hover:scale-107',
+      )}
+    >
+      <span className={cn('absolute inset-0 rounded-full', escondido ? null : 'pulsa-azul')} />
+      <IconeFormulario className="h-7 w-7 max-sm:h-[25px] max-sm:w-[25px]" />
+    </a>
   )
 }
 

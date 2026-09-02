@@ -2,9 +2,11 @@ import Link from 'next/link'
 import { Marca } from '@/components/ui/marca'
 import {
   AoAparecer,
+  AtalhoFormulario,
   Cabecalho,
   Contador,
 } from '@/components/site/interativos'
+import { Formulario } from '@/components/site/formulario'
 import {
   IconeAbertura,
   IconeAlcance,
@@ -15,13 +17,13 @@ import {
   IconeDado,
   IconeEscala,
   IconeEscudo,
+  IconeFormulario,
   IconeMulticanal,
   IconePersonalizacao,
   IconeRaio,
   IconeRcs,
   IconeSeta,
   IconeVoz,
-  IconeWhatsapp,
 } from '@/components/site/icones'
 
 /**
@@ -35,6 +37,9 @@ const NUMERO_WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP ?? '5588992640298'
 const MENSAGEM =
   'Olá! Vim pela landing page e quero saber mais sobre disparos em massa.'
 const LINK_WHATSAPP = `https://wa.me/${NUMERO_WHATSAPP}?text=${encodeURIComponent(MENSAGEM)}`
+
+/** Onde mora o formulário do CRM. Todo botão da página aponta para cá. */
+const ANCORA_FORMULARIO = '#proposta'
 
 const CANAIS = [
   {
@@ -142,7 +147,13 @@ const NICHOS = [
   },
 ]
 
-function BotaoWhatsapp({
+/**
+ * A chamada para ação da página. Antes levava direto ao WhatsApp; hoje leva ao
+ * formulário lá embaixo, que qualifica o lead e o entrega no CRM. O WhatsApp
+ * continua no fim do formulário — quem quiser falar agora fala, só que depois
+ * de a operação já ter o contato.
+ */
+function BotaoProposta({
   grande,
   children,
 }: {
@@ -151,14 +162,12 @@ function BotaoWhatsapp({
 }) {
   return (
     <a
-      href={LINK_WHATSAPP}
-      target="_blank"
-      rel="noopener"
-      className={`inline-flex items-center justify-center gap-2.5 rounded-full bg-wa font-bold text-white shadow-[0_14px_28px_-10px_rgba(37,211,102,.55)] transition-all hover:-translate-y-0.5 hover:bg-wa-dark ${
+      href={ANCORA_FORMULARIO}
+      className={`inline-flex items-center justify-center gap-2.5 rounded-full bg-blue font-bold text-white shadow-[0_14px_28px_-10px_rgba(0,120,248,.55)] transition-all hover:-translate-y-0.5 hover:bg-blue-dark ${
         grande ? 'px-8 py-4 text-[1.05rem]' : 'px-6 py-3.5 text-[.96rem]'
       }`}
     >
-      <IconeWhatsapp className="h-5 w-5 shrink-0" />
+      <IconeFormulario className="h-5 w-5 shrink-0" />
       {children}
     </a>
   )
@@ -167,7 +176,7 @@ function BotaoWhatsapp({
 export default function Landing() {
   return (
     <>
-      <Cabecalho whatsapp={LINK_WHATSAPP} />
+      <Cabecalho acao={ANCORA_FORMULARIO} />
 
       <main id="topo">
         {/* ───────────────────────────────────────────────── herói */}
@@ -197,7 +206,7 @@ export default function Landing() {
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-4">
-              <BotaoWhatsapp grande>Falar no WhatsApp</BotaoWhatsapp>
+              <BotaoProposta grande>Solicitar proposta</BotaoProposta>
               <a
                 href="#canais"
                 className="inline-flex items-center justify-center gap-2.5 rounded-full border-2 border-line px-8 py-4 text-[1.05rem] font-bold text-navy transition-all hover:-translate-y-0.5 hover:border-blue hover:text-blue"
@@ -396,7 +405,10 @@ export default function Landing() {
         </section>
 
         {/* ───────────────────────────────────────────── chamada final */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-navy to-navy-deep py-[104px] text-center text-white max-md:py-[68px]">
+        <section
+          id="proposta"
+          className="relative scroll-mt-20 overflow-hidden bg-gradient-to-br from-navy to-navy-deep py-[104px] text-center text-white max-md:py-[68px]"
+        >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-[-10%] top-[-40%] h-[70%]"
@@ -405,15 +417,24 @@ export default function Landing() {
                 'radial-gradient(560px 360px at 50% 0%, rgba(0,176,248,.22), transparent 65%)',
             }}
           />
-          <div className="relative mx-auto max-w-[620px] px-6">
-            <h2 className="mb-4 text-[clamp(1.7rem,1.2rem+2.3vw,2.5rem)] leading-[1.15] text-white">
+          <div className="relative mx-auto max-w-[680px] px-6">
+            <span className="inline-flex items-center rounded-full border border-cyan/25 bg-cyan/10 px-4 py-2 font-mono text-[.76rem] font-semibold tracking-[.13em] text-cyan uppercase">
+              6 perguntas · 1 minuto
+            </span>
+            <h2 className="mt-4 mb-4 text-[clamp(1.7rem,1.2rem+2.3vw,2.5rem)] leading-[1.15] text-white">
               Pronto para multiplicar seus resultados?
             </h2>
-            <p className="mb-8 text-[1.05rem] leading-relaxed text-[#c3d3f2]">
-              Fale agora com um especialista e monte, sem compromisso, a estratégia de disparo ideal
-              para o seu negócio.
+            <p className="mb-9 text-[1.05rem] leading-relaxed text-[#c3d3f2]">
+              Conte em um minuto como é a sua operação. Um especialista volta com a estratégia de
+              disparo ideal para o seu negócio — sem compromisso.
             </p>
-            <BotaoWhatsapp grande>Falar no WhatsApp agora</BotaoWhatsapp>
+
+            {/* O formulário do CRM, embutido. Fica no cartão para que a borda do
+                iframe seja uma escolha de design, e não uma emenda à vista. */}
+            <div className="overflow-hidden rounded-[18px] border border-white/12 bg-navy shadow-[0_28px_60px_-28px_rgba(0,0,0,.65)]">
+              <Formulario />
+            </div>
+
             <p className="mt-6 font-mono text-[.76rem] tracking-[.09em] text-[#8fa6d6] uppercase">
               Resposta rápida · Sem compromisso · Estratégia sob medida
             </p>
@@ -516,16 +537,7 @@ export default function Landing() {
       </footer>
 
       {/* Botão flutuante */}
-      <a
-        href={LINK_WHATSAPP}
-        target="_blank"
-        rel="noopener"
-        aria-label="Falar no WhatsApp"
-        className="fixed right-[22px] bottom-[22px] z-[200] flex h-15 w-15 items-center justify-center rounded-full bg-wa text-white shadow-[0_14px_30px_-8px_rgba(37,211,102,.6)] transition-transform hover:scale-107 max-sm:right-4 max-sm:bottom-4 max-sm:h-[54px] max-sm:w-[54px]"
-      >
-        <span className="pulsa absolute inset-0 rounded-full" />
-        <IconeWhatsapp className="h-7 w-7 max-sm:h-[25px] max-sm:w-[25px]" />
-      </a>
+      <AtalhoFormulario alvo={ANCORA_FORMULARIO} />
     </>
   )
 }

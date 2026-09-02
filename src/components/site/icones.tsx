@@ -1,4 +1,4 @@
-/** Os ícones da landing, inline. Sem biblioteca: são doze e não mudam. */
+/** Os ícones da landing, inline. Sem biblioteca: são poucos e não mudam. */
 
 type Props = { className?: string }
 
@@ -165,6 +165,16 @@ export function IconeMenu({ className }: Props) {
   return (
     <svg viewBox="0 0 24 24" {...traco} aria-hidden="true" className={className}>
       <path d="M3 6h18M3 12h18M3 18h18" />
+    </svg>
+  )
+}
+
+export function IconeFormulario({ className }: Props) {
+  return (
+    <svg viewBox="0 0 24 24" {...traco} aria-hidden="true" className={className}>
+      <path d="M8 4H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2" />
+      <rect x="9" y="2.5" width="6" height="3.5" rx="1.2" />
+      <path d="M8.5 11.5h7M8.5 15h4.5" />
     </svg>
   )
 }
