@@ -34,11 +34,11 @@ export const PRIVACIDADE: Documento = {
   rota: '/privacidade',
   titulo: 'Política de Privacidade',
   descricao: 'Como a Nex Envios coleta, utiliza, compartilha e protege dados pessoais, nos termos da Lei Geral de Proteção de Dados (LGPD).',
-  versao: '1.0',
-  atualizadoEm: '2026-08-28',
+  versao: '1.1',
+  atualizadoEm: '2026-09-02',
   fonte: `﻿# Política de Privacidade — Nex Envios
 
-**Versão 1.0 · Vigente desde 28 de agosto de 2026**
+**Versão 1.1 · Vigente desde 2 de setembro de 2026**
 
 Esta Política descreve como **NEX CREATIVE LTDA**, inscrita no CNPJ sob o nº **58.132.444/0001-60**, com sede na Rua Dr. Leandro, 175, Sala 05, Centro, Várzea Alegre/CE, CEP 63.540-000 ("**Nex Envios**", "nós"), coleta, utiliza, compartilha e protege dados pessoais, em conformidade com a Lei nº 13.709/2018 — Lei Geral de Proteção de Dados Pessoais (LGPD).
 
@@ -66,7 +66,14 @@ O controlador dos dados pessoais tratados nos termos desta Política é NEX CREA
 ### 2.3 Dados recebidos de terceiros
 
 - Confirmações e status de transação fornecidos por instituições de pagamento e antifraude.
-- Identificadores de conta, status de entrega e leitura de mensagens fornecidos pela API Oficial do WhatsApp (Meta) e demais plataformas de mensageria utilizadas.
+- Identificadores de conta, status de entrega e leitura de mensagens fornecidos pela API Oficial do WhatsApp (Meta) e pelos demais provedores de mensageria utilizados nos canais de WhatsApp, SMS, RCS e torpedo de voz.
+
+### 2.4 Dados de destinatários fornecidos por clientes
+
+- Para executar uma campanha contratada, o cliente anunciante nos fornece a base de contatos que receberá as mensagens, contendo telefone e, quando informados, nome e demais campos usados para personalizar a mensagem.
+- Nesse tratamento específico, e observado o disposto no item 1 desta Política, o cliente anunciante é, em regra, o controlador dos dados dos destinatários, atuando a Empresa como operadora, nos termos do art. 5º, VII, da LGPD.
+- Cabe ao cliente anunciante assegurar a licitude da base fornecida e obter e comprovar a manifestação de vontade prévia (opt-in) dos destinatários.
+- Registramos as respostas dos destinatários às campanhas e os pedidos de descadastro, para atender à solicitação e comprovar o atendimento.
 
 **Dados sensíveis:** não coletamos intencionalmente dados pessoais sensíveis (origem racial ou étnica, convicção religiosa, opinião política, filiação sindical, dados de saúde, vida sexual, genéticos ou biométricos). Pedimos que não os inclua em mensagens enviadas aos nossos canais.
 
@@ -88,16 +95,17 @@ O controlador dos dados pessoais tratados nos termos desta Política é NEX CREA
 Não vendemos dados pessoais. Compartilhamos apenas o necessário com:
 
 - Meta / WhatsApp Business Platform, provedora da API Oficial do WhatsApp utilizada para envio e recebimento de mensagens;
+- provedores de mensageria e operadoras de telefonia contratados para executar os disparos nos canais de WhatsApp, SMS, RCS e torpedo de voz, aos quais transmitimos os números de destino e o conteúdo da campanha, inclusive nos casos em que a execução do disparo é delegada integralmente ao provedor;
 - operadores e fornecedores que atuam em nosso nome — hospedagem, ferramentas de CRM, e-mail e analytics;
 - instituições financeiras e gateways de pagamento, para processamento e antifraude;
 - autoridades públicas, quando exigido por lei, ordem judicial ou requisição de autoridade competente;
 - terceiros em operações societárias, em caso de fusão, aquisição ou reorganização, mantidas as obrigações desta Política.
 
-Exigimos de todos os operadores a adoção de medidas de segurança compatíveis e o tratamento restrito às finalidades contratadas.
+Exigimos de todos os operadores a adoção de medidas de segurança compatíveis e o tratamento restrito às finalidades contratadas. A relação nominal dos fornecedores utilizados em cada canal pode ser solicitada pelo titular a qualquer momento, nos termos do item 9 desta Política.
 
 ## 5. Transferência internacional
 
-Alguns fornecedores de tecnologia, incluindo a Meta (WhatsApp Business Platform), podem armazenar ou processar dados fora do Brasil. Nesses casos, a transferência observa o art. 33 da LGPD, mediante cláusulas contratuais adequadas ou outra hipótese legal aplicável.
+Alguns fornecedores de tecnologia, incluindo a Meta (WhatsApp Business Platform), provedores de mensageria e prestadores de infraestrutura e hospedagem, podem armazenar ou processar dados fora do Brasil. Nesses casos, a transferência observa o art. 33 da LGPD, mediante cláusulas contratuais adequadas ou outra hipótese legal aplicável.
 
 ## 6. Cookies e tecnologias similares
 
@@ -152,7 +160,7 @@ CNPJ 58.132.444/0001-60
 Rua Dr. Leandro, 175, Sala 05, Centro, Várzea Alegre/CE, CEP 63.540-000
 
 Privacidade e LGPD: nexenviosdocs@nexenvios.com.br
-Atendimento geral: comercial@nexenvios.com.br
+Atendimento geral: comercial@nexenvios.com.br ou contato@nexenvios.com.br
 Telefone: (88) 9264-0298
 
 Você também pode apresentar reclamação à Autoridade Nacional de Proteção de Dados (ANPD) por meio do site gov.br/anpd.
@@ -166,11 +174,11 @@ export const TERMOS: Documento = {
   rota: '/termos',
   titulo: 'Termos de Uso',
   descricao: 'As regras de acesso e uso do site, da plataforma e dos canais oficiais de atendimento da Nex Envios.',
-  versao: '1.0',
-  atualizadoEm: '2026-08-28',
+  versao: '1.1',
+  atualizadoEm: '2026-09-02',
   fonte: `﻿# Termos de Uso — Nex Envios
 
-**Versão 1.0 · Vigente desde 28 de agosto de 2026**
+**Versão 1.1 · Vigente desde 2 de setembro de 2026**
 
 Estes Termos de Uso ("Termos") regulam o acesso e a utilização do site https://nexenvios.com.br e dos canais digitais de atendimento operados por **NEX CREATIVE LTDA**, inscrita no CNPJ sob o nº **58.132.444/0001-60**, com sede na Rua Dr. Leandro, 175, Sala 05, Centro, Várzea Alegre/CE, CEP 63.540-000, doravante denominada "**Nex Envios**", "nós" ou "Empresa".
 
@@ -183,10 +191,12 @@ Estes Termos de Uso ("Termos") regulam o acesso e a utilização do site https:/
 - **Canais Oficiais:** os meios de comunicação mantidos pela Empresa, incluindo WhatsApp e Instagram, além de e-mail e telefone divulgados na Plataforma.
 - **Agente Automatizado:** sistema de atendimento assistido por tecnologia, incluindo inteligência artificial, utilizado nos Canais Oficiais.
 - **API Oficial do WhatsApp:** a WhatsApp Business Platform, disponibilizada pela Meta, utilizada pela Empresa para o envio e recebimento de mensagens.
+- **Canais de Envio:** os meios pelos quais a Empresa executa as campanhas contratadas, incluindo WhatsApp — pela API Oficial ou por API não oficial —, SMS, RCS e torpedo de voz.
+- **Destinatário:** a pessoa que recebe as mensagens de uma campanha, a partir de base de contatos fornecida pelo Usuário contratante.
 
 ## 2. Objeto
 
-A Empresa atua no ramo de agência de publicidade, prestando serviços de comunicação e divulgação por meio do envio de mensagens via API Oficial do WhatsApp, além de atendimento pelos Canais Oficiais. A Plataforma e os Canais Oficiais são utilizados para apresentação dos serviços da Empresa, contratação, acompanhamento de solicitações e atendimento ao Usuário.
+A Empresa atua no ramo de agência de publicidade, prestando serviços de comunicação e divulgação por meio do envio de mensagens pelos Canais de Envio — WhatsApp, SMS, RCS e torpedo de voz —, além de atendimento pelos Canais Oficiais. A Plataforma e os Canais Oficiais são utilizados para apresentação dos serviços da Empresa, contratação, acompanhamento de solicitações e atendimento ao Usuário.
 
 ## 3. Cadastro e conta de acesso
 
@@ -213,7 +223,7 @@ Marcas, logotipos, nomes comerciais, textos, imagens, layout, código-fonte e de
 
 ## 6. Serviços, planos e contratação
 
-1. Os serviços oferecidos pela Empresa — incluindo envio de mensagens via API Oficial do WhatsApp, campanhas de comunicação e demais serviços de publicidade — são descritos na Plataforma ou em proposta comercial específica.
+1. Os serviços oferecidos pela Empresa — incluindo envio de mensagens pelos Canais de Envio, campanhas de comunicação e demais serviços de publicidade — são descritos na Plataforma ou em proposta comercial específica.
 2. Os valores e planos podem ser alterados a qualquer momento, sem aviso prévio, sendo válido para cada contratação o preço vigente no momento da confirmação.
 3. A confirmação da contratação está condicionada à aprovação do pagamento, quando aplicável.
 4. Erros manifestos de precificação ou de descrição de serviço não vinculam a Empresa, que comunicará o Usuário e poderá corrigir ou cancelar a contratação, com restituição integral dos valores eventualmente pagos.
@@ -229,7 +239,10 @@ As condições específicas de cancelamento, vigência e reembolso de cada servi
 3. O envio de mensagens depende de manifestação de vontade prévia do destinatário (opt-in) e pode ser cancelado a qualquer tempo, mediante solicitação pelo próprio canal ou pelos meios informados na mensagem.
 4. Respostas geradas por Agentes Automatizados têm caráter informativo. Em caso de divergência, prevalecem as informações constantes de contrato, proposta comercial e demais documentos oficiais emitidos pela Empresa.
 5. A Empresa não solicita, por nenhum canal, senhas, códigos de verificação, dados completos de cartão de crédito ou pagamentos a contas de titularidade diversa da informada nos documentos oficiais.
-6. O uso da API Oficial do WhatsApp pela Empresa observa as políticas comerciais e de mensageria da Meta, incluindo o uso de modelos de mensagem aprovados e o respeito às janelas de conversação aplicáveis.
+6. O uso da API Oficial do WhatsApp pela Empresa observa as políticas comerciais e de mensageria da Meta, incluindo o uso de modelos de mensagem aprovados e o respeito às janelas de conversação aplicáveis. Nos demais Canais de Envio, observam-se as regras das operadoras de telefonia, dos provedores contratados e a regulamentação aplicável a cada meio.
+7. A execução técnica do disparo pode ser realizada por provedores de mensageria contratados pela Empresa, aos quais são transmitidos os dados necessários ao envio, incluindo os números dos Destinatários e o conteúdo da campanha.
+8. Quando a campanha é contratada por Usuário que fornece a própria base de contatos, cabe a ele a licitude dessa base, a comprovação do opt-in dos Destinatários e a responsabilidade pelo conteúdo submetido para envio, respondendo a Empresa pela execução técnica nos termos contratados.
+9. O pedido de descadastro pode ser feito pelo próprio canal em que a mensagem foi recebida e é registrado de forma permanente: o contato descadastrado não volta a receber campanhas, ainda que seja incluído novamente em base enviada depois. Em campanha eleitoral, a mensagem informa a forma de descadastro, na forma da legislação aplicável.
 
 ## 9. Proteção de dados pessoais
 
@@ -261,7 +274,8 @@ Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica el
 CNPJ 58.132.444/0001-60
 Rua Dr. Leandro, 175, Sala 05, Centro, Várzea Alegre/CE, CEP 63.540-000
 
-E-mail: comercial@nexenvios.com.br
+E-mail: comercial@nexenvios.com.br ou contato@nexenvios.com.br
+Privacidade e LGPD: nexenviosdocs@nexenvios.com.br
 Telefone: (88) 9264-0298
 Site: https://nexenvios.com.br
 

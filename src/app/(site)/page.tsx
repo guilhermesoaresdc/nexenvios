@@ -549,6 +549,20 @@ export default function Landing() {
                       </Link>
                     </li>
                   ))}
+                  {/*
+                    O canal de LGPD fica aqui, e não só dentro da política.
+                    Quem vem exercer um direito do art. 18 chega pela home; ter
+                    que abrir o documento e procurar o endereço no item 10 é
+                    atrito num pedido que tem prazo legal correndo.
+                  */}
+                  <li>
+                    <a
+                      href="mailto:nexenviosdocs@nexenvios.com.br"
+                      className="text-[.94rem] text-[#dbe6fb] transition-colors hover:text-cyan"
+                    >
+                      Privacidade e LGPD
+                    </a>
+                  </li>
                 </ul>
               </div>
             </div>
