@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { ORIGEM } from '@/lib/site/origem'
 import { Inter, IBM_Plex_Mono, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 
@@ -31,20 +32,40 @@ const mono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_URL ?? 'https://nexenvios.com.br'),
+  metadataBase: new URL(ORIGEM),
   title: {
     default: 'Nex Envios — Disparos em Massa que Geram Resultado',
     template: '%s · Nex Envios',
   },
   description:
     'WhatsApp Oficial, API não oficial, SMS, RCS e Torpedo de Voz. Mais de 100 milhões de mensagens entregues. Estratégia de disparo para Corban, iGaming e campanhas em escala.',
+  alternates: { canonical: '/' },
   openGraph: {
     title: 'Nex Envios — Disparos em Massa que Geram Resultado',
     description:
       'WhatsApp Oficial, API não oficial, SMS, RCS e Torpedo de Voz em uma única operação de disparo.',
+    /*
+     * `og:url` faltava, e não é decorativo: é por ele que o WhatsApp e as
+     * redes decidem que dois links são a MESMA página. Sem ele, cada variação
+     * compartilhada (com utm, com barra no fim, pelo ápice) vira uma prévia
+     * própria — e uma delas vai ser a que não tem imagem em cache.
+     */
+    url: '/',
     type: 'website',
     locale: 'pt_BR',
     siteName: 'Nex Envios',
+  },
+  /*
+   * O cartão grande. Sem isto o X mostra a miniatura pequena de canto, que é
+   * o formato que a imagem de 1200×630 não foi feita para caber. A imagem em
+   * si vem do `opengraph-image` — o X usa a `og:image` como reserva, então
+   * não há uma segunda imagem para manter em dia.
+   */
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Nex Envios — Disparos em Massa que Geram Resultado',
+    description:
+      'WhatsApp Oficial, API não oficial, SMS, RCS e Torpedo de Voz em uma única operação de disparo.',
   },
   robots: { index: true, follow: true },
 }

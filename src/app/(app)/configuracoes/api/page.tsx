@@ -8,11 +8,12 @@ import { BotaoLink, Chip, Pad, PadTitulo, Tabela, Td, Th, Vazio } from '@/compon
 import { Titulo } from '@/components/shell/casca'
 import { dataHora, quando } from '@/lib/ui'
 import { NovaChave, Revogar } from './painel'
+import { ORIGEM } from '@/lib/site/origem'
 
 export const metadata: Metadata = { title: 'API' }
 export const dynamic = 'force-dynamic'
 
-const BASE = process.env.APP_URL ?? 'https://nexenvios.com.br'
+const BASE = ORIGEM
 
 export default async function Api() {
   const usuario = await exigirAdmin()

@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { DOCUMENTOS } from '@/lib/juridico/documentos'
+import { ORIGEM } from '@/lib/site/origem'
 
 /**
  * O mapa do site.
@@ -13,12 +14,10 @@ import { DOCUMENTOS } from '@/lib/juridico/documentos'
  * anunciá-los não ajuda ninguém.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const raiz = (process.env.APP_URL ?? 'https://nexenvios.com.br').replace(/\/$/, '')
-
   return [
-    { url: raiz, changeFrequency: 'weekly', priority: 1 },
+    { url: ORIGEM, changeFrequency: 'weekly', priority: 1 },
     ...DOCUMENTOS.map((d) => ({
-      url: `${raiz}${d.rota}`,
+      url: `${ORIGEM}${d.rota}`,
       lastModified: new Date(`${d.atualizadoEm}T12:00:00-03:00`),
       changeFrequency: 'yearly' as const,
       priority: 0.4,
