@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { listarRespostas } from '@/db/queries/historico'
@@ -11,7 +12,7 @@ import { Descadastrar } from './painel'
 export const metadata: Metadata = { title: 'Respostas' }
 export const dynamic = 'force-dynamic'
 
-export default async function Respostas() {
+async function Respostas() {
   const usuario = await exigirUsuario()
   const respostas = await listarRespostas(usuario.orgId, 100)
 
@@ -84,3 +85,5 @@ export default async function Respostas() {
     </>
   )
 }
+
+export default paginaComBanco('/respostas', Respostas)

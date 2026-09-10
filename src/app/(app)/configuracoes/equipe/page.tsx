@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirAdmin } from '@/lib/auth/atual'
 import { usuariosDaOrg } from '@/db/queries/admin'
@@ -10,7 +11,7 @@ import { Convidar, LinhaDoUsuario } from './painel'
 export const metadata: Metadata = { title: 'Equipe' }
 export const dynamic = 'force-dynamic'
 
-export default async function Equipe() {
+async function Equipe() {
   const usuario = await exigirAdmin()
   const equipe = await usuariosDaOrg(usuario.orgId)
   const admins = equipe.filter((u) => u.papel === 'admin' && u.ativo).length
@@ -113,3 +114,5 @@ export default async function Equipe() {
     </>
   )
 }
+
+export default paginaComBanco('/configuracoes/equipe', Equipe)

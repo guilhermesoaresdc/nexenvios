@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { exigirTimeNex } from '@/lib/auth/atual'
@@ -26,7 +27,7 @@ const TOM: Record<DispatchStatus, 'verde' | 'azul' | 'neutro' | 'vermelho' | 'ci
 
 const POR_PAGINA = 60
 
-export default async function Envios({
+async function Envios({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -165,3 +166,5 @@ export default async function Envios({
     </>
   )
 }
+
+export default paginaComBanco('/admin/envios', Envios)

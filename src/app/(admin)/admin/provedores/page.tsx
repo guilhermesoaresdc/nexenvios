@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirSuperadmin } from '@/lib/auth/atual'
 import { sql } from '@/db'
@@ -47,7 +48,7 @@ function perfilDe(credenciais: string | null) {
   return perfil.nome || perfil.fotoUrl || perfil.nome2 || perfil.fotoUrl2 ? perfil : null
 }
 
-export default async function Provedores() {
+async function Provedores() {
   await exigirSuperadmin()
 
   const linhas = await sql<ProvedorDaPlataforma[]>`
@@ -124,3 +125,5 @@ export default async function Provedores() {
     </>
   )
 }
+
+export default paginaComBanco('/admin/provedores', Provedores)

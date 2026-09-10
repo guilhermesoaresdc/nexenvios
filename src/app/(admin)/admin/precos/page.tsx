@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirSuperadmin } from '@/lib/auth/atual'
 import { listarClientes, tabelaDePrecos } from '@/db/queries/admin'
@@ -18,7 +19,7 @@ const UNIDADE: Record<Channel, string> = {
   voz: 'por chamada completada',
 }
 
-export default async function Precos() {
+async function Precos() {
   await exigirSuperadmin()
 
   const [precos, clientes] = await Promise.all([tabelaDePrecos(), listarClientes({ limite: 200 })])
@@ -64,3 +65,5 @@ export default async function Precos() {
     </>
   )
 }
+
+export default paginaComBanco('/admin/precos', Precos)

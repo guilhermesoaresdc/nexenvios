@@ -54,7 +54,7 @@ export async function listarCampanhas(
       FROM campaigns c
       LEFT JOIN users u ON u.id = c.created_by
      WHERE c.org_id = ${orgId}
-       ${status && status.length > 0 ? sql`AND c.status = ANY(${status}::campaign_status[])` : sql``}
+       ${status && status.length > 0 ? sql`AND c.status IN ${sql(status)}` : sql``}
        ${canal ? sql`AND c.channel = ${canal}::channel` : sql``}
        ${busca ? sql`AND c.name ILIKE ${'%' + busca + '%'}` : sql``}
      ORDER BY c.created_at DESC
@@ -70,7 +70,7 @@ export async function contarCampanhas(
   const [linha] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM campaigns c
      WHERE c.org_id = ${orgId}
-       ${status && status.length > 0 ? sql`AND c.status = ANY(${status}::campaign_status[])` : sql``}
+       ${status && status.length > 0 ? sql`AND c.status IN ${sql(status)}` : sql``}
        ${canal ? sql`AND c.channel = ${canal}::channel` : sql``}
        ${busca ? sql`AND c.name ILIKE ${'%' + busca + '%'}` : sql``}
   `

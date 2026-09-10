@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -33,7 +34,7 @@ const TIPO_LABEL: Record<string, string> = {
   ajuste: 'Ajuste',
 }
 
-export default async function Cliente({ params }: { params: Promise<{ id: string }> }) {
+async function Cliente({ params }: { params: Promise<{ id: string }> }) {
   const eu = await exigirTimeNex()
   const podeTudo = eu.isSuperadmin
   const { id } = await params
@@ -263,3 +264,5 @@ export default async function Cliente({ params }: { params: Promise<{ id: string
     </>
   )
 }
+
+export default paginaComBanco('/admin/clientes/[id]', Cliente)

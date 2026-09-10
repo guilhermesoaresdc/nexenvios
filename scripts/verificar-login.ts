@@ -21,7 +21,13 @@ async function main() {
   servidor.stderr.on('data', (dados) => { saida = (saida + dados).slice(-24000) })
   const orgs: string[] = []
   async function consultar(caminho: string, opcoes: RequestInit = {}) {
-    return fetch(origem + caminho, { ...opcoes, redirect: 'manual', signal: AbortSignal.timeout(18_000) })
+    return fetch(origem + caminho, { ...opcoes, redirect: 'manual', signal: AbortSignal.timeout(25_000) })
+  }
+  async function conferirRedirecionamento(resposta: Response, destino: string) {
+    if (resposta.headers.get('location') === destino) return
+    const html = await resposta.text()
+    assert(html.includes(`content="0;url=${destino}"`) || html.includes(`content="1;url=${destino}"`),
+      `Deve redirecionar para ${destino}, inclusive quando o loading já iniciou o streaming.`)
   }
   try {
     let pronto = false
@@ -53,15 +59,26 @@ async function main() {
       assert.match(cookieCompleto, /SameSite=lax/i)
       const cookie = cookieCompleto.split(';')[0]!
       assert(cookie.startsWith('nex_sessao='))
-      const caminhos = plataforma ? ['/admin', '/admin/clientes', '/admin/operacao'] : ['/painel', '/contatos', '/saldo']
-      for (const caminho of caminhos) {
-        const pagina = await consultar(caminho, { headers: { Cookie: cookie } })
-        const html = await pagina.text()
-        assert.equal(pagina.status, 200, caminho)
-        assert(!html.includes('Não foi possível carregar esta página'), caminho)
-        assert(!html.includes('Acesse sua conta'), caminho)
-        assert(html.includes('Teste HTTP'), 'Página deve identificar a conta autenticada.')
-        console.log(`OK: login ${plataforma ? 'Nex' : 'cliente'} → ${caminho}`)
+      const caminhos = plataforma
+        ? ['/admin', '/admin/operacao', '/admin/clientes', '/admin/usuarios', '/admin/equipe', '/admin/envios', '/admin/precos', '/admin/provedores', '/admin/clientes/novo']
+        : ['/painel', '/disparo', '/campanhas', '/campanhas?status=rascunho', '/contatos', '/saldo', '/historico', '/canais', '/configuracoes', '/contatos/listas', '/contatos/importar', '/respostas', '/configuracoes/equipe', '/configuracoes/api', '/canais/nome-de-perfil']
+      // Dados não vazios conferem também a decodificação de arrays das consultas.
+      await sql`insert into contacts (org_id, name, email, tags) values (${org!.id}, 'Contato de teste HTTP', ${email}, ARRAY['etiqueta-http'])`
+      // A segunda volta verifica o reuso da instância, além da primeira entrada.
+      for (let volta = 0; volta < 2; volta++) {
+        for (const caminho of caminhos) {
+          const pagina = await consultar(caminho, { headers: { Cookie: cookie } })
+          const html = await pagina.text()
+          assert.equal(pagina.status, 200, caminho)
+          assert(!html.includes('Não foi possível carregar esta página'), caminho)
+          assert(!html.includes('Acesse sua conta'), caminho)
+          assert(html.includes('Teste HTTP'), 'Página deve identificar a conta autenticada.')
+          assert(!html.includes('NEXT_HTTP_ERROR_FALLBACK;500') && !html.includes('PageDatabaseTimeout'), caminho)
+          assert(saida.includes('carregamento concluído'), 'Renderização deve usar conexão com prazo.')
+          assert(/<h1[^>]*>[^<]+<\/h1>/.test(html), 'Deve concluir o conteúdo da página, não apenas o menu e loading.')
+          if (caminho === '/contatos') assert(html.includes('etiqueta-http'), 'Arrays devem continuar decodificados.')
+          console.log(`OK: login ${plataforma ? 'Nex' : 'cliente'} → ${caminho}`)
+        }
       }
       const invalido = await consultar('/api/auth/entrar', {
         method: 'POST', headers: { Origin: origem, Accept: 'application/json' },
@@ -71,7 +88,7 @@ async function main() {
       assert.equal(invalido.headers.get('set-cookie'), null)
       if (!plataforma) {
         const restrito = await consultar('/admin', { headers: { Cookie: cookie } })
-        assert.equal(restrito.headers.get('location'), '/painel')
+        await conferirRedirecionamento(restrito, '/painel')
       }
       const pedido = await consultar('/api/auth/recuperar', {
         method: 'POST', headers: { Origin: origem, Accept: 'application/json' },
@@ -97,7 +114,7 @@ async function main() {
       assert.match(salvo.headers.get('set-cookie') ?? '', /Max-Age=0/i)
       assert.equal((await salvar()).status, 400, 'O link não pode ser usado duas vezes.')
       const sessaoAntiga = await consultar(destino, { headers: { Cookie: cookie } })
-      assert.equal(sessaoAntiga.headers.get('location'), '/entrar')
+      await conferirRedirecionamento(sessaoAntiga, '/entrar')
       for (const [valor, status] of [[senha, 400], [novaSenha, 200]] as const) {
         const login = await consultar('/api/auth/entrar', {
           method: 'POST', headers: { Origin: origem, Accept: 'application/json' },

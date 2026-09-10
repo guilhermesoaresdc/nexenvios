@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirAdmin } from '@/lib/auth/atual'
 import { canaisDaOrg, numerosDaOrg } from '@/db/queries/canais'
@@ -21,7 +22,7 @@ const EXPLICACAO: Record<Channel, string> = {
   voz: 'Áudio automático direto na ligação. Configure pelo provedor HTTP da sua operadora.',
 }
 
-export default async function Canais() {
+async function Canais() {
   const usuario = await exigirAdmin()
 
   const [canais, numeros, token] = await Promise.all([
@@ -124,3 +125,5 @@ export default async function Canais() {
     </>
   )
 }
+
+export default paginaComBanco('/canais', Canais)

@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { opcoesDeConexao } from './conexao'
 import * as schema from './schema'
+import { bancoDoEscopo } from './escopo'
 
 /**
  * Conexão com o Postgres.
@@ -38,11 +39,15 @@ function criarCliente() {
  * cada recarga vazaria um pool inteiro até estourar o limite de conexões.
  */
 function cliente() {
+  const escopo = bancoDoEscopo()
+  if (escopo) return escopo.cliente
   globalThis.__nexPg ??= criarCliente()
   return globalThis.__nexPg
 }
 
 function orm() {
+  const escopo = bancoDoEscopo()
+  if (escopo) return escopo.banco
   globalThis.__nexDb ??= drizzle(cliente(), { schema })
   return globalThis.__nexDb
 }

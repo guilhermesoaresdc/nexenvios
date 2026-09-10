@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { db } from '@/db'
@@ -32,7 +33,7 @@ const TIPO_LABEL: Record<string, string> = {
 
 const WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP ?? '5588992640298'
 
-export default async function Configuracoes() {
+async function Configuracoes() {
   const usuario = await exigirUsuario()
 
   const [[org], extrato] = await Promise.all([
@@ -189,3 +190,5 @@ export default async function Configuracoes() {
     </>
   )
 }
+
+export default paginaComBanco('/configuracoes', Configuracoes)

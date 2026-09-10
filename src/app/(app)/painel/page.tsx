@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import { ResumoDelegado } from '@/components/shell/resumo-delegado'
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
@@ -54,7 +55,7 @@ const TOM_DO_STATUS: Record<string, TomDoChip> = {
   pausada: 'ambar',
 }
 
-export default async function Painel() {
+async function Painel() {
   const usuario = await exigirUsuario()
 
   const [resumo, serie, canais, emCurso, passos] = await Promise.all([
@@ -417,3 +418,5 @@ function Passo({
     </div>
   )
 }
+
+export default paginaComBanco('/painel', Painel)
