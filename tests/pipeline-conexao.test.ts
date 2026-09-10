@@ -1,7 +1,7 @@
 import { createServer, type Socket } from 'node:net'
-import postgres from 'postgres'
 import { expect, it, vi } from 'vitest'
-import { opcoesDeConexao } from '@/db/conexao'
+import { comBancoDaPagina, bancoDoEscopo } from '@/db/escopo'
+import { sql } from '@/db'
 
 function mensagem(tipo: string, conteudo = Buffer.alloc(0)) {
   const tamanho = Buffer.alloc(4)
@@ -41,18 +41,20 @@ it('não envia outra consulta antes de receber ReadyForQuery, mesmo com Promise.
   })
   await new Promise<void>((resolve) => servidor.listen(0, '127.0.0.1', resolve))
   const url = `postgres://teste:teste@127.0.0.1:${(servidor.address() as {port:number}).port}/teste`
-  const sql = postgres(url, { ...opcoesDeConexao(url, { max: 1 }), prepare: false, fetch_types: false })
+  vi.stubEnv('DATABASE_URL', url)
   try {
+    await comBancoDaPagina(async () => {
     await sql`select 1`
     const pendentes = Promise.allSettled([sql`select 2`, sql`select 3`, sql`select ${4}`])
     await vi.waitFor(() => expect(consultas).toBe(2))
     // Dá tempo ao cliente de escrever qualquer pacote indevido ao peer local.
     await new Promise(resolve => setTimeout(resolve, 80))
     expect(consultas).toBe(2)
-    await sql.end({ timeout: 0 })
+    await bancoDoEscopo()!.cliente.end({ timeout: 0 })
     await pendentes
+    }, '/teste-pipeline')
   } finally {
-    await sql.end({ timeout: 0 })
+    vi.unstubAllEnvs()
     for (const socket of sockets) socket.destroy()
     await new Promise<void>((resolve) => servidor.close(() => resolve()))
   }

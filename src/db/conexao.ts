@@ -35,10 +35,6 @@ export function ePooler(url: string): boolean {
 export function opcoesDeConexao(url: string, opcoes: { max?: number } = {}) {
   return {
     max: opcoes.max ?? 10,
-    // Uma consulta em voo por conexão. Evita intercalar Parse/Describe/Bind
-    // de statements sem nome no pooler quando há Promise.all no chamador.
-    // No postgres.js o valor conta consultas adicionais à que está ativa.
-    max_pipeline: 0,
     idle_timeout: 20,
     connect_timeout: 15,
     prepare: !ePooler(url),
