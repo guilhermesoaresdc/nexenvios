@@ -28,16 +28,20 @@ export async function comBancoDaPagina<T>(executar: () => Promise<T>, pagina: st
   if (bancoDoEscopo()) return executar()
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL não configurada.')
-  const cliente = postgres(url, {
+  const opcoes: postgres.Options<Record<string, never>> & { max_pipeline: number } = {
     ...opcoesDeConexao(url, { max: 1 }),
     connect_timeout: 5,
     prepare: false,
+    // Leituras da página aguardam ReadyForQuery antes da próxima consulta.
+    // Aplicado só aqui: transações do motor e das ações usam outro cliente.
+    max_pipeline: 0,
     // Evita a consulta automática ao catálogo (não aguardada pelo driver).
     // Arrays brutos são retornados como JSON nas consultas; o Drizzle
     // decodifica os arrays tipados por conta própria.
     fetch_types: false,
     connection: { application_name: 'nex-pagina' },
-  })
+  }
+  const cliente = postgres(url, opcoes)
   const escopo: Escopo = { cliente, banco: drizzle(cliente, { schema }), encerrado: false }
   const inicio = Date.now()
   let timer: ReturnType<typeof setTimeout> | undefined
