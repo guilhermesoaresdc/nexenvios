@@ -356,6 +356,7 @@ export async function criarCampanha(
         .update(campaigns)
         .set({
           status: 'falhou',
+          externalProvider: null,
           materialized: true,
           externalReason:
             'Campanha eleitoral pelo Monitor de Envios exige a declaração política (documento do candidato e partido). Sem ela a mensagem sairia sem a frase de descadastro exigida por lei.',
