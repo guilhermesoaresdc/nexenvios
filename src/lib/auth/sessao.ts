@@ -63,9 +63,10 @@ export function hashToken(token: string): string {
 export async function criarSessao(
   userId: string,
   meta: { ip?: string | null; userAgent?: string | null } = {},
+  banco: Pick<Db, 'insert'> = db,
 ): Promise<{ token: string; sessao: Session }> {
   const token = gerarTokenSessao()
-  const [sessao] = await db
+  const [sessao] = await banco
     .insert(sessions)
     .values({
       id: hashToken(token),

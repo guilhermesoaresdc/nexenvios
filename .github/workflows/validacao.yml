@@ -38,3 +38,5 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - name: Verificar login e navegação HTTP no build
+        run: node --import tsx scripts/verificar-login.ts
