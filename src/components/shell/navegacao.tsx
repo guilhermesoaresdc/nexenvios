@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn, moeda } from '@/lib/ui'
 import { Marca, Simbolo } from '@/components/ui/marca'
@@ -159,7 +158,7 @@ export function Navegacao({
           const marcado = ativo(caminho, href)
           return (
             <li key={href}>
-              <Link
+              <a
                 href={href}
                 onClick={() => setAberto(false)}
                 aria-current={marcado ? 'page' : undefined}
@@ -176,7 +175,7 @@ export function Navegacao({
                       : 'text-[#adc0e4] hover:bg-white/6 hover:text-white'
                   }
                 />
-              </Link>
+              </a>
             </li>
           )
         })}
@@ -189,7 +188,7 @@ export function Navegacao({
               {area === 'nex' ? 'Sua conta' : 'Time Nex'}
             </p>
           )}
-          <Link
+          <a
             href={area === 'nex' ? '/painel' : '/admin'}
             onClick={() => setAberto(false)}
             title={
@@ -203,7 +202,7 @@ export function Navegacao({
               encolhido={estreito}
               className="text-[#adc0e4] hover:bg-white/6 hover:text-white"
             />
-          </Link>
+          </a>
         </div>
       ) : null}
     </>
@@ -234,9 +233,9 @@ export function Navegacao({
         )}
       >
         <div className={cn('mb-7 max-lg:hidden', estreito ? 'flex justify-center' : 'px-2')}>
-          <Link href={area === 'nex' ? '/admin' : '/painel'} aria-label="Nex Envios">
+          <a href={area === 'nex' ? '/admin' : '/painel'} aria-label="Nex Envios">
             {estreito ? <Simbolo size={30} /> : <Marca size={28} claro />}
-          </Link>
+          </a>
           {area === 'nex' && !estreito ? (
             <p className="mt-2 font-mono text-[.62rem] tracking-[.14em] text-cyan uppercase">
               Administração

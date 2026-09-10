@@ -73,12 +73,12 @@ export function Cabecalho({ acao }: { acao: string }) {
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
-          <Link
+          <a
             href="/entrar"
             className="rounded-full border-2 border-line px-5 py-2.5 text-[.86rem] font-bold text-navy transition-colors hover:border-blue hover:text-blue max-[560px]:hidden"
           >
             Entrar
-          </Link>
+          </a>
           <a
             href={acao}
             onClick={() => setAberto(false)}
