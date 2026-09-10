@@ -19,15 +19,12 @@ export const usuarioAtual = cache(async (): Promise<UsuarioAutenticado | null> =
   try {
     return await validarSessao(token)
   } catch (erro) {
-    /*
-     * Banco fora do ar significa "não autenticado", nunca uma página de erro:
-     * a própria tela de entrada chama esta função, e propagar a exceção
-     * derrubaria justamente a tela onde o problema deveria ser explicado.
-     */
+    // Indisponibilidade não invalida a identidade nem apaga o cookie.
+    // A página de erro oferece nova tentativa sem redirecionar para login.
     log.warn('não foi possível validar a sessão', {
       motivo: erro instanceof Error ? erro.name : 'desconhecido',
     })
-    return null
+    throw erro
   }
 })
 
