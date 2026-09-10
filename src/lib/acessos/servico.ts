@@ -1,11 +1,10 @@
 import 'server-only'
 import { and, eq, ne } from 'drizzle-orm'
-import { db } from '@/db'
-import { auditLog, organizations, users } from '@/db/schema'
+import { db, type Db } from '@/db'
+import { auditLog, organizations, passwordTokens, sessions, users } from '@/db/schema'
 import { PAPEIS_DA_NEX, type UserRole } from '@/db/schema/enums'
 import type { UsuarioAutenticado } from '@/lib/auth/sessao'
 import { enviarEmailDeSenha } from '@/lib/auth/email'
-import { encerrarTodasAsSessoes } from '@/lib/auth/sessao'
 import { gerarHash, gerarSenha } from '@/lib/auth/senha'
 import { emitirToken, linkDeSenha } from '@/lib/auth/tokens'
 import { TAMANHO_MINIMO_SENHA } from '@/lib/auth/regras'
@@ -45,17 +44,22 @@ function podeConceder(autor: UsuarioAutenticado, papel: UserRole): boolean {
 
 /** O autor pode mexer nesta organização? */
 function alcanca(autor: UsuarioAutenticado, orgId: string): boolean {
-  return autor.isTimeNex || autor.orgId === orgId
+  return autor.isTimeNex || (autor.isAdmin && autor.orgId === orgId)
 }
 
-async function outrosAdminsAtivos(orgId: string, exceto: string): Promise<number> {
-  const linhas = await db
+async function outrosAdminsAtivos(
+  orgId: string,
+  exceto: string,
+  papel: UserRole,
+  conexao: Db,
+): Promise<number> {
+  const linhas = await conexao
     .select({ id: users.id })
     .from(users)
     .where(
       and(
         eq(users.orgId, orgId),
-        eq(users.role, 'admin'),
+        eq(users.role, papel),
         eq(users.active, true),
         ne(users.id, exceto),
       ),
@@ -90,6 +94,8 @@ export type AcessoCriado = {
 export async function criarUsuario(
   autor: UsuarioAutenticado,
   dados: NovoUsuario,
+  conexao: Db = db,
+  enviarConvite = true,
 ): Promise<Resultado<AcessoCriado>> {
   if (!alcanca(autor, dados.orgId)) return recusar('Você não administra esta conta.')
   if (!podeConceder(autor, dados.papel)) {
@@ -97,19 +103,25 @@ export async function criarUsuario(
   }
 
   const email = dados.email.trim().toLowerCase()
-  const [jaExiste] = await db
+  const [jaExiste] = await conexao
     .select({ id: users.id })
     .from(users)
     .where(eq(users.email, email))
     .limit(1)
   if (jaExiste) return recusar('Já existe um usuário com este e-mail.')
 
-  const [org] = await db
-    .select({ id: organizations.id, nome: organizations.name })
+  const [org] = await conexao
+    .select({
+      id: organizations.id,
+      nome: organizations.name,
+      plataforma: organizations.isPlatform,
+    })
     .from(organizations)
     .where(eq(organizations.id, dados.orgId))
     .limit(1)
   if (!org) return recusar('Conta não encontrada.')
+  if (PAPEIS_DA_NEX.includes(dados.papel) && !org.plataforma)
+    return recusar('Papéis da Nex só podem ser concedidos na conta interna da plataforma.')
 
   let hash: string | null = null
   let senhaEmClaro: string | undefined
@@ -122,7 +134,7 @@ export async function criarUsuario(
     hash = await gerarHash(senhaEmClaro)
   }
 
-  const [novo] = await db
+  const [novo] = await conexao
     .insert(users)
     .values({
       orgId: dados.orgId,
@@ -138,14 +150,14 @@ export async function criarUsuario(
   let link: string | undefined
   let emailEnviado = false
 
-  if (dados.acesso === 'convite') {
+  if (dados.acesso === 'convite' && enviarConvite) {
     const token = await emitirToken(novo.id, 'convite')
     const envio = await enviarEmailDeSenha(email, token, 'convite')
     link = envio.link
     emailEnviado = envio.enviado
   }
 
-  await db.insert(auditLog).values({
+  await conexao.insert(auditLog).values({
     orgId: dados.orgId,
     userId: autor.id,
     action: 'usuario.criado',
@@ -192,13 +204,16 @@ export async function definirSenhaDe(
     return recusar(`A senha precisa ter pelo menos ${TAMANHO_MINIMO_SENHA} caracteres.`)
   }
 
-  await db
-    .update(users)
-    .set({ passwordHash: await gerarHash(nova) })
-    .where(eq(users.id, usuarioId))
-
-  // Senha nova derruba tudo que estava aberto com a antiga.
-  await encerrarTodasAsSessoes(usuarioId)
+  const hash = await gerarHash(nova)
+  await db.transaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, usuarioId)).for('update')
+    await tx.update(users).set({ passwordHash: hash }).where(eq(users.id, usuarioId))
+    await tx
+      .update(passwordTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordTokens.userId, usuarioId))
+    await tx.delete(sessions).where(eq(sessions.userId, usuarioId))
+  })
 
   await db.insert(auditLog).values({
     orgId: alvo.orgId,
@@ -250,41 +265,67 @@ export async function trocarPapel(
   usuarioId: string,
   papel: UserRole,
 ): Promise<Resultado> {
-  const [alvo] = await db
-    .select({ id: users.id, orgId: users.orgId, papel: users.role, ativo: users.active })
-    .from(users)
-    .where(eq(users.id, usuarioId))
-    .limit(1)
+  return db.transaction(async (tx) => {
+    const [local] = await tx
+      .select({ orgId: users.orgId })
+      .from(users)
+      .where(eq(users.id, usuarioId))
+    if (!local) return recusar('Usuário não encontrado.')
+    await tx
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.id, local.orgId))
+      .for('update')
+    const [alvo] = await tx
+      .select({ id: users.id, orgId: users.orgId, papel: users.role, ativo: users.active })
+      .from(users)
+      .where(eq(users.id, usuarioId))
+      .limit(1)
 
-  if (!alvo) return recusar('Usuário não encontrado.')
-  if (!alcanca(autor, alvo.orgId)) return recusar('Você não administra esta conta.')
-  if (usuarioId === autor.id) {
-    return recusar('Você não muda o próprio papel. Peça a outro administrador.')
-  }
-  if (!podeConceder(autor, papel) || (PAPEIS_DA_NEX.includes(alvo.papel) && !autor.isSuperadmin)) {
-    return recusar('Só um Administrador Nex mexe em papel do time Nex.')
-  }
-
-  // Rebaixar o último administrador ativo deixa a conta sem ninguém que
-  // consiga liberar canal, equipe ou chave — e a saída vira chamado.
-  if (alvo.papel === 'admin' && papel !== 'admin' && alvo.ativo) {
-    if ((await outrosAdminsAtivos(alvo.orgId, usuarioId)) === 0) {
-      return recusar('Este é o último administrador ativo da conta. Promova outro antes.')
+    if (!alvo) return recusar('Usuário não encontrado.')
+    if (!alcanca(autor, alvo.orgId)) return recusar('Você não administra esta conta.')
+    if (usuarioId === autor.id) {
+      return recusar('Você não muda o próprio papel. Peça a outro administrador.')
     }
-  }
+    if (
+      !podeConceder(autor, papel) ||
+      (PAPEIS_DA_NEX.includes(alvo.papel) && !autor.isSuperadmin)
+    ) {
+      return recusar('Só um Administrador Nex mexe em papel do time Nex.')
+    }
 
-  await db.update(users).set({ role: papel }).where(eq(users.id, usuarioId))
+    // Rebaixar o último administrador ativo deixa a conta sem ninguém que
+    // consiga liberar canal, equipe ou chave — e a saída vira chamado.
+    if (['admin', 'superadmin'].includes(alvo.papel) && papel !== alvo.papel && alvo.ativo) {
+      if (
+        (await outrosAdminsAtivos(alvo.orgId, usuarioId, alvo.papel, tx as unknown as Db)) === 0
+      ) {
+        return recusar('Este é o último administrador ativo da conta. Promova outro antes.')
+      }
+    }
 
-  await db.insert(auditLog).values({
-    orgId: alvo.orgId,
-    userId: autor.id,
-    action: 'usuario.papel_alterado',
-    entity: 'user',
-    entityId: usuarioId,
-    meta: { de: alvo.papel, para: papel },
+    if (PAPEIS_DA_NEX.includes(papel)) {
+      const [org] = await tx
+        .select({ plataforma: organizations.isPlatform })
+        .from(organizations)
+        .where(eq(organizations.id, alvo.orgId))
+      if (!org?.plataforma)
+        return recusar('Papéis da Nex só podem ser concedidos na conta interna da plataforma.')
+    }
+    await tx.delete(sessions).where(eq(sessions.userId, usuarioId))
+    await tx.update(users).set({ role: papel }).where(eq(users.id, usuarioId))
+
+    await tx.insert(auditLog).values({
+      orgId: alvo.orgId,
+      userId: autor.id,
+      action: 'usuario.papel_alterado',
+      entity: 'user',
+      entityId: usuarioId,
+      meta: { de: alvo.papel, para: papel },
+    })
+
+    return { ok: true }
   })
-
-  return { ok: true }
 }
 
 export async function alternarAtivo(
@@ -292,37 +333,51 @@ export async function alternarAtivo(
   usuarioId: string,
   ativar: boolean,
 ): Promise<Resultado> {
-  const [alvo] = await db
-    .select({ id: users.id, orgId: users.orgId, papel: users.role, ativo: users.active })
-    .from(users)
-    .where(eq(users.id, usuarioId))
-    .limit(1)
+  return db.transaction(async (tx) => {
+    const [local] = await tx
+      .select({ orgId: users.orgId })
+      .from(users)
+      .where(eq(users.id, usuarioId))
+    if (!local) return recusar('Usuário não encontrado.')
+    await tx
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.id, local.orgId))
+      .for('update')
+    const [alvo] = await tx
+      .select({ id: users.id, orgId: users.orgId, papel: users.role, ativo: users.active })
+      .from(users)
+      .where(eq(users.id, usuarioId))
+      .limit(1)
 
-  if (!alvo) return recusar('Usuário não encontrado.')
-  if (!alcanca(autor, alvo.orgId)) return recusar('Você não administra esta conta.')
-  if (usuarioId === autor.id) return recusar('Você não desativa a si mesmo.')
-  if (PAPEIS_DA_NEX.includes(alvo.papel) && !autor.isSuperadmin) {
-    return recusar('Só um Administrador Nex desativa alguém do time Nex.')
-  }
-
-  if (!ativar && alvo.papel === 'admin') {
-    if ((await outrosAdminsAtivos(alvo.orgId, usuarioId)) === 0) {
-      return recusar('Este é o último administrador ativo da conta. Promova outro antes.')
+    if (!alvo) return recusar('Usuário não encontrado.')
+    if (!alcanca(autor, alvo.orgId)) return recusar('Você não administra esta conta.')
+    if (usuarioId === autor.id) return recusar('Você não desativa a si mesmo.')
+    if (PAPEIS_DA_NEX.includes(alvo.papel) && !autor.isSuperadmin) {
+      return recusar('Só um Administrador Nex desativa alguém do time Nex.')
     }
-  }
 
-  await db.update(users).set({ active: ativar }).where(eq(users.id, usuarioId))
-  if (!ativar) await encerrarTodasAsSessoes(usuarioId)
+    if (!ativar && ['admin', 'superadmin'].includes(alvo.papel)) {
+      if (
+        (await outrosAdminsAtivos(alvo.orgId, usuarioId, alvo.papel, tx as unknown as Db)) === 0
+      ) {
+        return recusar('Este é o último administrador ativo da conta. Promova outro antes.')
+      }
+    }
 
-  await db.insert(auditLog).values({
-    orgId: alvo.orgId,
-    userId: autor.id,
-    action: ativar ? 'usuario.reativado' : 'usuario.desativado',
-    entity: 'user',
-    entityId: usuarioId,
+    await tx.update(users).set({ active: ativar }).where(eq(users.id, usuarioId))
+    if (!ativar) await tx.delete(sessions).where(eq(sessions.userId, usuarioId))
+
+    await tx.insert(auditLog).values({
+      orgId: alvo.orgId,
+      userId: autor.id,
+      action: ativar ? 'usuario.reativado' : 'usuario.desativado',
+      entity: 'user',
+      entityId: usuarioId,
+    })
+
+    return { ok: true }
   })
-
-  return { ok: true }
 }
 
 /** Remove de vez. Só o time Nex, e nunca a si mesmo. */
@@ -333,33 +388,47 @@ export async function removerUsuario(
   if (!autor.isTimeNex) return recusar('Só o time Nex Envios remove usuário.')
   if (usuarioId === autor.id) return recusar('Você não se remove.')
 
-  const [alvo] = await db
-    .select({ id: users.id, orgId: users.orgId, papel: users.role, ativo: users.active })
-    .from(users)
-    .where(eq(users.id, usuarioId))
-    .limit(1)
+  return db.transaction(async (tx) => {
+    const [local] = await tx
+      .select({ orgId: users.orgId })
+      .from(users)
+      .where(eq(users.id, usuarioId))
+    if (!local) return recusar('Usuário não encontrado.')
+    await tx
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.id, local.orgId))
+      .for('update')
+    const [alvo] = await tx
+      .select({ id: users.id, orgId: users.orgId, papel: users.role, ativo: users.active })
+      .from(users)
+      .where(eq(users.id, usuarioId))
+      .limit(1)
 
-  if (!alvo) return recusar('Usuário não encontrado.')
-  if (PAPEIS_DA_NEX.includes(alvo.papel) && !autor.isSuperadmin) {
-    return recusar('Só um Administrador Nex remove alguém do time Nex.')
-  }
-  if (alvo.papel === 'admin' && alvo.ativo) {
-    if ((await outrosAdminsAtivos(alvo.orgId, usuarioId)) === 0) {
-      return recusar('Este é o último administrador ativo da conta. Promova outro antes.')
+    if (!alvo) return recusar('Usuário não encontrado.')
+    if (PAPEIS_DA_NEX.includes(alvo.papel) && !autor.isSuperadmin) {
+      return recusar('Só um Administrador Nex remove alguém do time Nex.')
     }
-  }
+    if (['admin', 'superadmin'].includes(alvo.papel) && alvo.ativo) {
+      if (
+        (await outrosAdminsAtivos(alvo.orgId, usuarioId, alvo.papel, tx as unknown as Db)) === 0
+      ) {
+        return recusar('Este é o último administrador ativo da conta. Promova outro antes.')
+      }
+    }
 
-  await encerrarTodasAsSessoes(usuarioId)
-  await db.delete(users).where(eq(users.id, usuarioId))
+    await tx.delete(sessions).where(eq(sessions.userId, usuarioId))
+    await tx.delete(users).where(eq(users.id, usuarioId))
 
-  await db.insert(auditLog).values({
-    orgId: alvo.orgId,
-    userId: autor.id,
-    action: 'usuario.removido',
-    entity: 'user',
-    entityId: usuarioId,
-    meta: { papel: alvo.papel },
+    await tx.insert(auditLog).values({
+      orgId: alvo.orgId,
+      userId: autor.id,
+      action: 'usuario.removido',
+      entity: 'user',
+      entityId: usuarioId,
+      meta: { papel: alvo.papel },
+    })
+
+    return { ok: true }
   })
-
-  return { ok: true }
 }

@@ -1,3 +1,6 @@
+'use client'
+
+import { useId } from 'react'
 import { cn } from '@/lib/ui'
 
 /**
@@ -10,6 +13,7 @@ import { cn } from '@/lib/ui'
 
 /** O símbolo: o "N" recortado dentro do quadrado, com o rastro do disparo. */
 export function Simbolo({ className, size = 32 }: { className?: string; size?: number }) {
+  const gradiente = useId()
   return (
     <svg
       width={size}
@@ -21,17 +25,14 @@ export function Simbolo({ className, size = 32 }: { className?: string; size?: n
       className={className}
     >
       <defs>
-        <linearGradient id="nex-fundo" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+        <linearGradient id={gradiente} x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
           <stop stopColor="#002058" />
           <stop offset="1" stopColor="#0078f8" />
         </linearGradient>
       </defs>
-      <rect width="64" height="64" rx="16" fill="url(#nex-fundo)" />
+      <rect width="64" height="64" rx="16" fill={`url(#${gradiente})`} />
       {/* O N */}
-      <path
-        d="M18 45V19h6.2l13.6 16.4V19H44v26h-6.2L24.2 28.6V45H18Z"
-        fill="#fff"
-      />
+      <path d="M18 45V19h6.2l13.6 16.4V19H44v26h-6.2L24.2 28.6V45H18Z" fill="#fff" />
       {/* O rastro: três traços que saem do N, como a mensagem partindo. */}
       <path d="M48 24h8M48 32h6M48 40h8" stroke="#00b0f8" strokeWidth="3" strokeLinecap="round" />
     </svg>

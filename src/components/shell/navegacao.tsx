@@ -52,6 +52,7 @@ const DO_CLIENTE: Item[] = [
   { href: '/disparo', texto: 'Novo disparo', Icone: IcDisparo },
   { href: '/campanhas', texto: 'Campanhas', Icone: IcCampanhas },
   { href: '/contatos', texto: 'Contatos', Icone: IcContatos },
+  { href: '/saldo', texto: 'Saldo e extrato', Icone: IcSaldo },
   { href: '/historico', texto: 'Histórico', Icone: IcHistorico },
   { href: '/canais', texto: 'Canais', Icone: IcCanais, soAdmin: true },
   { href: '/configuracoes', texto: 'Configurações', Icone: IcConfig, soAdmin: true },
@@ -59,6 +60,7 @@ const DO_CLIENTE: Item[] = [
 
 const DA_NEX: Item[] = [
   { href: '/admin', texto: 'Visão geral', Icone: IcPainel },
+  { href: '/admin/operacao', texto: 'Operação', Icone: IcPainel, soPoderTotal: true },
   { href: '/admin/clientes', texto: 'Clientes', Icone: IcClientes },
   { href: '/admin/usuarios', texto: 'Usuários', Icone: IcContatos },
   { href: '/admin/equipe', texto: 'Time Nex', Icone: IcConfig },
@@ -190,7 +192,9 @@ export function Navegacao({
           <Link
             href={area === 'nex' ? '/painel' : '/admin'}
             onClick={() => setAberto(false)}
-            title={estreito ? (area === 'nex' ? 'Ir para o painel' : 'Administração Nex') : undefined}
+            title={
+              estreito ? (area === 'nex' ? 'Ir para o painel' : 'Administração Nex') : undefined
+            }
             className="block"
           >
             <Linha

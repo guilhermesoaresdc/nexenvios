@@ -36,8 +36,7 @@ function autorizado(req: Request): boolean {
   const cabecalho = req.headers.get('authorization') ?? ''
   if (cabecalho === `Bearer ${segredo}`) return true
 
-  // A Vercel assina o próprio cron com este cabeçalho.
-  return req.headers.get('x-vercel-cron') !== null && process.env.VERCEL === '1'
+  return false
 }
 
 async function executar(req: Request) {
@@ -47,7 +46,8 @@ async function executar(req: Request) {
 
   const comecou = Date.now()
   const url = new URL(req.url)
-  const lote = Number(url.searchParams.get('lote')) || undefined
+  const pedido = Number(url.searchParams.get('lote'))
+  const lote = Number.isFinite(pedido) && pedido > 0 ? Math.min(100, Math.floor(pedido)) : undefined
   const resultado: Record<string, unknown> = {}
 
   // Cada tarefa em try/catch próprio: uma falha de manutenção não pode

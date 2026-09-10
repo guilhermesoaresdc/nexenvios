@@ -92,7 +92,7 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
    * cada mensagem tem linha própria. Onde não sabemos, esta página passa a não
    * afirmar.
    */
-  const delegada = Boolean(campanha.externalCode)
+  const delegada = Boolean(campanha.externalCode || campanha.externalProvider)
 
   const preparando = campanha.status === 'preparando'
   const temReal = Number(campanha.custoReal) > 0
@@ -117,13 +117,7 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
             {campanha.autor ? ` · criada por ${campanha.autor}` : ''} · {quando(campanha.criadaEm)}
           </>
         }
-        acao={
-          <Controles
-            campanhaId={campanha.id}
-            status={campanha.status}
-            delegada={Boolean(campanha.externalCode)}
-          />
-        }
+        acao={<Controles campanhaId={campanha.id} status={campanha.status} delegada={delegada} />}
       />
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -150,7 +144,8 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
           <AtualizaSozinho />
           <Aviso tom="info" titulo="Preparando a base…" className="mb-5">
             {numero(campanha.pendentes)} de {numero(campanha.total)} linhas prontas. Bases grandes
-            levam alguns minutos para virar fila — esta tela se atualiza sozinha, pode deixar aberta.
+            levam alguns minutos para virar fila — esta tela se atualiza sozinha, pode deixar
+            aberta.
           </Aviso>
         </>
       ) : null}
@@ -162,10 +157,20 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
         escondendo justamente a explicação que a pessoa precisa para corrigir.
       */}
       {!campanha.externalCode && campanha.externalReason ? (
-        <Aviso tom="erro" titulo="O Monitor de Envios não aceitou este disparo" className="mb-5">
+        <Aviso
+          tom={delegada ? 'alerta' : 'erro'}
+          titulo={
+            delegada
+              ? 'Envio aguardando conferência'
+              : 'O Monitor de Envios não aceitou este disparo'
+          }
+          className="mb-5"
+        >
           {campanha.externalReason}
           <span className="mt-2 block">
-            Nada foi cobrado. Ajuste o que foi apontado e crie o disparo de novo.
+            {delegada
+              ? 'A submissão pode ter sido recebida. Confira com a Nex antes de repetir o envio; o saldo permanece comprometido.'
+              : 'Nada foi cobrado. Ajuste o que foi apontado e crie o disparo de novo.'}
           </span>
         </Aviso>
       ) : null}
@@ -199,7 +204,10 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
               <>
                 Quem controla o ritmo agora é a plataforma deles. Os números abaixo vêm de lá e
                 atualizam a cada batida do motor
-                {campanha.externalSyncedAt ? ` — última conferência ${quando(campanha.externalSyncedAt)}` : ''}.
+                {campanha.externalSyncedAt
+                  ? ` — última conferência ${quando(campanha.externalSyncedAt)}`
+                  : ''}
+                .
               </>
             ) : (
               <>
@@ -225,7 +233,9 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
         <Numero
           rotulo="Total"
           valor={numero(campanha.total)}
-          nota={preparando ? 'Estimado — a base ainda está sendo preparada' : 'Destinatários da fila'}
+          nota={
+            preparando ? 'Estimado — a base ainda está sendo preparada' : 'Destinatários da fila'
+          }
         />
         <Numero
           rotulo="Enviados"

@@ -7,10 +7,9 @@ const log = criarLog('email')
 /**
  * E-mail transacional (convite e recuperação de senha).
  *
- * Usa o Resend quando `RESEND_API_KEY` existe. Sem a variável, o link é
- * escrito no log do servidor e a operação segue: numa instalação nova, sem
- * domínio verificado, travar o convite por causa do e-mail seria pior — o
- * administrador copia o link do log e manda pelo canal que quiser.
+ * Usa o Resend quando `RESEND_API_KEY` existe. Sem a variável, o administrador
+ * recebe o link na tela autenticada de gestão de acessos. Tokens nunca vão
+ * para logs; a recuperação pública mantém a resposta genérica.
  */
 
 const ASSUNTO: Record<Proposito, string> = {
@@ -23,7 +22,8 @@ function corpo(link: string, proposito: Proposito): string {
     proposito === 'convite'
       ? 'Sua conta na Nex Envios foi criada. Defina uma senha para entrar:'
       : 'Recebemos um pedido para trocar a senha da sua conta. Se foi você, defina uma nova:'
-  const validade = proposito === 'convite' ? 'Este link vale por 7 dias.' : 'Este link vale por 1 hora.'
+  const validade =
+    proposito === 'convite' ? 'Este link vale por 7 dias.' : 'Este link vale por 1 hora.'
 
   return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f5f7fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0b1220">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">
@@ -49,9 +49,8 @@ export async function enviarEmailDeSenha(
   const remetente = process.env.EMAIL_REMETENTE ?? 'Nex Envios <nao-responda@nexenvios.com.br>'
 
   if (!chave) {
-    // O e-mail (dado pessoal) não vai para o log; o link, sim — ele é o que o
-    // administrador precisa copiar, e sozinho não identifica ninguém.
-    log.warn('sem RESEND_API_KEY: link gerado, e-mail não enviado', { proposito, link })
+    // O link permite trocar a senha: nunca registrar tokens nos logs.
+    log.warn('sem RESEND_API_KEY: e-mail não enviado', { proposito })
     return { enviado: false, link }
   }
 

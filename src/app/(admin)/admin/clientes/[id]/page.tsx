@@ -6,7 +6,6 @@ import { extratoDaOrg, tabelaDePrecos, usuariosDaOrg, verCliente } from '@/db/qu
 import { CANAL_LABEL, PAPEIS_DO_CLIENTE, PAPEL_LABEL, type UserRole } from '@/db/schema/enums'
 import { entrarNaConta } from '@/lib/auth/visita'
 import {
-  Aviso,
   Botao,
   BotaoLink,
   Chip,
@@ -21,13 +20,8 @@ import {
 } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { dataHora, moeda, numero, quando } from '@/lib/ui'
-import { Cadastro, CadastroSoLeitura, Convite, Credito, Status } from './painel'
-import {
-  AcoesDoUsuario,
-  EstadoDoAcesso,
-  NovoAcesso,
-  SegredoDeUmaVez,
-} from '../../usuarios/painel'
+import { Cadastro, CadastroSoLeitura, Credito, Status } from './painel'
+import { AcoesDoUsuario, EstadoDoAcesso, NovoAcesso } from '../../usuarios/painel'
 
 export const metadata: Metadata = { title: 'Cliente' }
 export const dynamic = 'force-dynamic'
@@ -39,17 +33,10 @@ const TIPO_LABEL: Record<string, string> = {
   ajuste: 'Ajuste',
 }
 
-export default async function Cliente({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
+export default async function Cliente({ params }: { params: Promise<{ id: string }> }) {
   const eu = await exigirTimeNex()
   const podeTudo = eu.isSuperadmin
   const { id } = await params
-  const p = await searchParams
 
   const cliente = await verCliente(id)
   if (!cliente) notFound()
@@ -62,9 +49,6 @@ export default async function Cliente({
 
   const doCliente = precos.filter((x) => x.orgId === id)
   const padrao = precos.filter((x) => x.orgId === null)
-  const convite = typeof p.convite === 'string' && p.convite ? p.convite : null
-  const senhaNova = typeof p.senha === 'string' && p.senha ? p.senha : null
-  const aviso = typeof p.aviso === 'string' && p.aviso ? p.aviso : null
 
   return (
     <>
@@ -90,27 +74,6 @@ export default async function Cliente({
           </>
         }
       />
-
-      {aviso ? (
-        <Aviso tom="erro" className="mb-5" titulo="O cliente foi criado, mas o acesso não">
-          {aviso}. Crie o acesso no formulário &ldquo;Dar acesso a alguém&rdquo;, abaixo.
-        </Aviso>
-      ) : null}
-
-      {senhaNova ? (
-        <div className="mb-5">
-          <SegredoDeUmaVez
-            titulo="Cliente criado — copie a senha do administrador"
-            valor={senhaNova}
-            email={cliente.contato ?? undefined}
-            explica="Ela não aparece de novo. Entregue à pessoa e peça para trocar no primeiro acesso."
-          />
-        </div>
-      ) : convite ? (
-        <div className="mb-5">
-          <Convite link={convite} />
-        </div>
-      ) : null}
 
       <div className="grid grid-cols-4 gap-4 max-lg:grid-cols-2 max-sm:grid-cols-1">
         <Numero
@@ -138,7 +101,10 @@ export default async function Cliente({
               descricao="Toda movimentação de crédito. É o que faz o saldo bater."
             />
             {extrato.length === 0 ? (
-              <Vazio titulo="Sem movimentação" descricao="Nenhum crédito lançado nesta conta ainda." />
+              <Vazio
+                titulo="Sem movimentação"
+                descricao="Nenhum crédito lançado nesta conta ainda."
+              />
             ) : (
               <Tabela>
                 <thead>
@@ -264,7 +230,10 @@ export default async function Cliente({
               descricao="Sem exceção, vale a tabela padrão da plataforma."
               acao={
                 podeTudo ? (
-                  <Link href="/admin/precos" className="text-[.84rem] font-semibold text-blue hover:underline">
+                  <Link
+                    href="/admin/precos"
+                    className="text-[.84rem] font-semibold text-blue hover:underline"
+                  >
                     Editar
                   </Link>
                 ) : null

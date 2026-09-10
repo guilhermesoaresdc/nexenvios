@@ -1,39 +1,25 @@
-/**
- * Limite de tentativas de login, em memória.
- *
- * Em memória porque não há Redis nesta instalação — e, na Vercel, cada função
- * tem a sua. Isso quer dizer que o limite é POR INSTÂNCIA, não global: um
- * atacante distribuído passa por cima. O que ele resolve de fato é força bruta
- * ingênua contra um único endereço, que é o caso comum.
- *
- * A defesa real contra ataque distribuído é o custo do scrypt no `conferirSenha`
- * — cada tentativa errada custa CPU ao servidor, mas custa tempo ao atacante.
- */
+import 'server-only'
+import { createHash } from 'node:crypto'
+import { sql } from '@/db'
 
-type Registro = { tentativas: number; ate: number }
-
-const JANELA_MS = 15 * 60 * 1000
-const TETO = 10
-
-const registros = new Map<string, Registro>()
-
-export function registrarTentativa(chave: string): { bloqueado: boolean; restam: number } {
-  const agora = Date.now()
-  const atual = registros.get(chave)
-
-  if (!atual || atual.ate <= agora) {
-    registros.set(chave, { tentativas: 1, ate: agora + JANELA_MS })
-    return { bloqueado: false, restam: TETO - 1 }
-  }
-
-  atual.tentativas += 1
-  // Higiene: sem isto o Map cresce sem teto numa instância de vida longa.
-  if (registros.size > 5000) {
-    for (const [k, v] of registros) if (v.ate <= agora) registros.delete(k)
-  }
-  return { bloqueado: atual.tentativas > TETO, restam: Math.max(TETO - atual.tentativas, 0) }
+/** Limite compartilhado entre instâncias, sem guardar IP ou e-mail em claro. */
+export async function registrarTentativa(
+  chave: string,
+): Promise<{ bloqueado: boolean; restam: number }> {
+  const id = createHash('sha256').update(chave).digest('hex')
+  const [linha] = await sql<{ attempts: number }[]>`
+    INSERT INTO auth_attempts (key, attempts, expires_at)
+    VALUES (${id}, 1, now() + interval '15 minutes')
+    ON CONFLICT (key) DO UPDATE SET
+      attempts = CASE WHEN auth_attempts.expires_at <= now() THEN 1 ELSE auth_attempts.attempts + 1 END,
+      expires_at = CASE WHEN auth_attempts.expires_at <= now() THEN now() + interval '15 minutes' ELSE auth_attempts.expires_at END
+    RETURNING attempts
+  `
+  const n = linha?.attempts ?? 11
+  return { bloqueado: n > 10, restam: Math.max(0, 10 - n) }
 }
 
-export function limparTentativas(chave: string): void {
-  registros.delete(chave)
+export async function limparTentativas(chave: string): Promise<void> {
+  const id = createHash('sha256').update(chave).digest('hex')
+  await sql`DELETE FROM auth_attempts WHERE key = ${id}`
 }

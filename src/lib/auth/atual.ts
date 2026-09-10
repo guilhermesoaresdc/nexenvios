@@ -85,6 +85,9 @@ export function exigirPoderTotal(usuario: UsuarioAutenticado): void {
 
 /** Quem só lê não escreve. Chamado no começo de toda server action. */
 export function exigirEscrita(usuario: UsuarioAutenticado): void {
+  if (usuario.orgStatus !== 'ativo') {
+    throw new Error('Esta conta está suspensa ou encerrada. Fale com a Nex Envios.')
+  }
   if (usuario.isLeitor) {
     throw new Error('Seu acesso é somente leitura. Peça a um administrador para liberar.')
   }

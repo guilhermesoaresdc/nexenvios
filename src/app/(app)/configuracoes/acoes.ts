@@ -1,14 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { and, eq, ne } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/db'
-import { auditLog, organizations, users } from '@/db/schema'
+import { auditLog, organizations } from '@/db/schema'
 import { exigirAdmin, exigirEscrita, exigirUsuario } from '@/lib/auth/atual'
-import { enviarEmailDeSenha } from '@/lib/auth/email'
-import { encerrarTodasAsSessoes } from '@/lib/auth/sessao'
-import { emitirToken } from '@/lib/auth/tokens'
+import {
+  criarUsuario,
+  gerarLinkDeAcesso,
+  trocarPapel,
+  alternarAtivo as alternarAcesso,
+} from '@/lib/acessos/servico'
 import { criarChave, revogarChave, ESCOPOS, type Escopo } from '@/lib/api/chave'
 
 export type Estado = { erro?: string; ok?: string; link?: string; chave?: string } | undefined
@@ -75,42 +78,18 @@ export async function convidar(_anterior: Estado, form: FormData): Promise<Estad
   })
   if (!dados.success) return { erro: dados.error.issues[0]?.message ?? 'Confira os campos.' }
 
-  const [jaExiste] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, dados.data.email))
-    .limit(1)
-  if (jaExiste) return { erro: 'Já existe um usuário com este e-mail.' }
-
-  const [novo] = await db
-    .insert(users)
-    .values({
-      orgId: usuario.orgId,
-      name: dados.data.nome,
-      email: dados.data.email,
-      role: dados.data.papel,
-      passwordHash: null,
-    })
-    .returning({ id: users.id })
-
-  if (!novo) return { erro: 'Não foi possível criar o usuário.' }
-
-  const token = await emitirToken(novo.id, 'convite')
-  const envio = await enviarEmailDeSenha(dados.data.email, token, 'convite')
-
-  await db.insert(auditLog).values({
+  const r = await criarUsuario(usuario, {
     orgId: usuario.orgId,
-    userId: usuario.id,
-    action: 'usuario.convidado',
-    entity: 'user',
-    entityId: novo.id,
-    meta: { papel: dados.data.papel },
+    nome: dados.data.nome,
+    email: dados.data.email,
+    papel: dados.data.papel,
+    acesso: 'convite',
   })
-
+  if (!r.ok) return { erro: r.erro }
   revalidatePath('/configuracoes/equipe')
   return {
-    ok: envio.enviado ? 'Convite enviado por e-mail.' : 'Usuário criado. Copie o link abaixo.',
-    link: envio.link,
+    ok: r.valor.emailEnviado ? 'Convite enviado.' : 'Acesso criado. Copie o link.',
+    link: r.valor.link,
   }
 }
 
@@ -118,21 +97,13 @@ export async function reenviarConvite(_anterior: Estado, form: FormData): Promis
   const usuario = await exigirAdmin()
   exigirEscrita(usuario)
 
-  const id = String(form.get('usuarioId') ?? '')
-  const [alvo] = await db
-    .select({ id: users.id, email: users.email })
-    .from(users)
-    .where(and(eq(users.id, id), eq(users.orgId, usuario.orgId)))
-    .limit(1)
-
-  if (!alvo) return { erro: 'Usuário não encontrado.' }
-
-  const token = await emitirToken(alvo.id, 'convite')
-  const envio = await enviarEmailDeSenha(alvo.email, token, 'convite')
-
+  const id = z.string().uuid().safeParse(form.get('usuarioId'))
+  if (!id.success) return { erro: 'Usuário inválido.' }
+  const r = await gerarLinkDeAcesso(usuario, id.data)
+  if (!r.ok) return { erro: r.erro }
   return {
-    ok: envio.enviado ? 'Convite reenviado.' : 'Link gerado. Copie abaixo.',
-    link: envio.link,
+    ok: r.valor.enviado ? 'Convite reenviado.' : 'Link gerado. Copie abaixo.',
+    link: r.valor.link,
   }
 }
 
@@ -151,56 +122,21 @@ export async function mudarPapel(_anterior: Estado, form: FormData): Promise<Est
   })
   if (!dados.success) return { erro: 'Papel inválido.' }
 
-  /*
-   * Um administrador não se rebaixa. Sem esta trava, o único admin da conta
-   * pode se tornar operador e a empresa fica sem ninguém que consiga liberar
-   * canal, equipe ou chave de API — e a saída vira chamado de suporte.
-   */
-  if (dados.data.usuarioId === usuario.id) {
-    return { erro: 'Você não pode mudar o próprio papel. Peça a outro administrador.' }
-  }
-
-  await db
-    .update(users)
-    .set({ role: dados.data.papel })
-    .where(and(eq(users.id, dados.data.usuarioId), eq(users.orgId, usuario.orgId)))
-
+  const r = await trocarPapel(usuario, dados.data.usuarioId, dados.data.papel)
+  if (!r.ok) return { erro: r.erro }
   revalidatePath('/configuracoes/equipe')
   return { ok: 'Papel atualizado.' }
 }
 
-export async function alternarAtivo(usuarioId: string, ativar: boolean): Promise<void> {
+export async function alternarAtivo(usuarioId: string, ativar: boolean): Promise<Estado> {
   const usuario = await exigirAdmin()
   exigirEscrita(usuario)
-
-  if (usuarioId === usuario.id) return
-
-  await db
-    .update(users)
-    .set({ active: ativar })
-    .where(and(eq(users.id, usuarioId), eq(users.orgId, usuario.orgId)))
-
-  // Desativar derruba as sessões abertas na hora; esperar o cookie vencer
-  // deixaria a pessoa dentro por até trinta dias.
-  if (!ativar) await encerrarTodasAsSessoes(usuarioId)
-
+  if (!z.string().uuid().safeParse(usuarioId).success || typeof ativar !== 'boolean')
+    return { erro: 'Dados inválidos.' }
+  const r = await alternarAcesso(usuario, usuarioId, ativar)
+  if (!r.ok) return { erro: r.erro }
   revalidatePath('/configuracoes/equipe')
-}
-
-/** Quantos administradores ativos a conta ainda tem além deste. */
-export async function outrosAdmins(orgId: string, exceto: string): Promise<number> {
-  const linhas = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(
-      and(
-        eq(users.orgId, orgId),
-        eq(users.role, 'admin'),
-        eq(users.active, true),
-        ne(users.id, exceto),
-      ),
-    )
-  return linhas.length
+  return { ok: ativar ? 'Usuário reativado.' : 'Usuário desativado.' }
 }
 
 // ───────────────────────────────────────────────────────── chaves API

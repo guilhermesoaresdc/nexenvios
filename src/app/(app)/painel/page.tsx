@@ -1,3 +1,4 @@
+import { ResumoDelegado } from '@/components/shell/resumo-delegado'
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
@@ -143,6 +144,8 @@ export default async function Painel() {
       />
 
       {avisoDeSaldo}
+
+      <ResumoDelegado />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Numero

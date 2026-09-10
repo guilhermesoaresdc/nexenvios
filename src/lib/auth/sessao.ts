@@ -1,7 +1,7 @@
 import 'server-only'
 import { createHash, randomBytes } from 'node:crypto'
 import { eq, lt } from 'drizzle-orm'
-import { db } from '@/db'
+import { db, sql } from '@/db'
 import { organizations, sessions, users } from '@/db/schema'
 import type { Session, UserRole } from '@/db/schema'
 
@@ -96,16 +96,23 @@ export async function validarSessao(token: string): Promise<UsuarioAutenticado |
       email: users.email,
       role: users.role,
       active: users.active,
+      homeStatus: organizations.status,
+      homePlatform: organizations.isPlatform,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
+    .innerJoin(organizations, eq(organizations.id, users.orgId))
     .where(eq(sessions.id, id))
     .limit(1)
 
   if (!linha) return null
 
   // Vencida ou de usuário desativado morre na hora em que é apresentada.
-  if (linha.sessao.expiresAt.getTime() <= Date.now() || !linha.active) {
+  if (
+    linha.sessao.expiresAt.getTime() <= Date.now() ||
+    !linha.active ||
+    linha.homeStatus === 'cancelado'
+  ) {
     await db.delete(sessions).where(eq(sessions.id, id))
     return null
   }
@@ -118,8 +125,8 @@ export async function validarSessao(token: string): Promise<UsuarioAutenticado |
       .where(eq(sessions.id, id))
   }
 
-  const isSuperadmin = linha.role === 'superadmin'
-  const isTimeNex = isSuperadmin || linha.role === 'suporte'
+  const isSuperadmin = linha.homePlatform && linha.role === 'superadmin'
+  const isTimeNex = linha.homePlatform && (isSuperadmin || linha.role === 'suporte')
   // Personificação só vale para o time Nex. Se o papel mudou depois que a
   // sessão foi aberta, o acting_org_id vira letra morta na hora.
   const alvo = isTimeNex && linha.sessao.actingOrgId ? linha.sessao.actingOrgId : linha.homeOrgId
@@ -147,7 +154,7 @@ export async function validarSessao(token: string): Promise<UsuarioAutenticado |
     isSuperadmin,
     isTimeNex,
     isAdmin: isTimeNex || linha.role === 'admin',
-    isLeitor: linha.role === 'visualizador',
+    isLeitor: linha.role === 'visualizador' || linha.role === 'suporte',
     homeOrgId: linha.homeOrgId,
     orgId: org.id,
     orgName: org.name,
@@ -170,10 +177,14 @@ export async function encerrarTodasAsSessoes(userId: string): Promise<void> {
 
 /** O time Nex passa a ver a conta de um cliente sem trocar de identidade. */
 export async function personificar(token: string, orgId: string | null): Promise<void> {
-  await db.update(sessions).set({ actingOrgId: orgId }).where(eq(sessions.id, hashToken(token)))
+  await db
+    .update(sessions)
+    .set({ actingOrgId: orgId })
+    .where(eq(sessions.id, hashToken(token)))
 }
 
 export async function limparSessoesVencidas(): Promise<number> {
+  await sql`DELETE FROM auth_attempts WHERE expires_at < now()`
   const removidas = await db
     .delete(sessions)
     .where(lt(sessions.expiresAt, new Date()))

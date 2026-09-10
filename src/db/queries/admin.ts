@@ -35,7 +35,7 @@ export async function resumoGeral(): Promise<ResumoGeral> {
         WHERE status = 'falhou' AND created_at >= now() - interval '30 days') AS "falhas30",
       (SELECT count(*)::int FROM dispatches WHERE status = 'pendente') AS "naFila",
       (SELECT count(*)::int FROM campaigns
-        WHERE status IN ('preparando', 'agendada', 'enviando', 'pausada')) AS "campanhasAtivas",
+        WHERE status IN ('preparando', 'agendada', 'aguardando', 'enviando', 'pausada')) AS "campanhasAtivas",
       (SELECT COALESCE(sum(-delta), 0)::text FROM credit_ledger
         WHERE kind = 'consumo' AND created_at >= now() - interval '30 days') AS "receita30",
       (SELECT COALESCE(sum(credits), 0)::text FROM organizations WHERE NOT is_platform)
@@ -73,12 +73,14 @@ export type LinhaDeCliente = {
   contato: string | null
 }
 
-export async function listarClientes(opcoes: {
-  busca?: string
-  status?: OrgStatus
-  limite?: number
-  pular?: number
-} = {}): Promise<LinhaDeCliente[]> {
+export async function listarClientes(
+  opcoes: {
+    busca?: string
+    status?: OrgStatus
+    limite?: number
+    pular?: number
+  } = {},
+): Promise<LinhaDeCliente[]> {
   const { busca, status, limite = 50, pular = 0 } = opcoes
   return sql<LinhaDeCliente[]>`
     SELECT o.id, o.name AS nome, o.slug AS apelido, o.status,
@@ -236,12 +238,14 @@ export type EnvioGlobal = {
   enviadoEm: Date | null
 }
 
-export async function enviosGlobais(opcoes: {
-  orgId?: string
-  status?: string
-  limite?: number
-  pular?: number
-} = {}): Promise<EnvioGlobal[]> {
+export async function enviosGlobais(
+  opcoes: {
+    orgId?: string
+    status?: string
+    limite?: number
+    pular?: number
+  } = {},
+): Promise<EnvioGlobal[]> {
   const { orgId, status, limite = 50, pular = 0 } = opcoes
   return sql<EnvioGlobal[]>`
     SELECT d.id, o.name AS cliente, c.name AS campanha, d.channel AS canal,
@@ -390,7 +394,9 @@ export async function orgDaPlataforma(): Promise<{ id: string; nome: string } | 
 }
 
 /** Clientes em forma de opção de select — nome e id, nada mais. */
-export async function clientesParaEscolha(): Promise<{ id: string; nome: string; plataforma: boolean }[]> {
+export async function clientesParaEscolha(): Promise<
+  { id: string; nome: string; plataforma: boolean }[]
+> {
   return sql<{ id: string; nome: string; plataforma: boolean }[]>`
     SELECT id, name AS nome, is_platform AS plataforma
       FROM organizations

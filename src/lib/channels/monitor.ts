@@ -1,4 +1,5 @@
 import 'server-only'
+import { baixarArquivoPublico } from '@/lib/http/arquivo-publico'
 
 /**
  * Monitor de Envios — campanha inteira, não mensagem a mensagem.
@@ -79,7 +80,7 @@ export type SubmissaoDaCampanha = {
 
 export type ResultadoDaSubmissao =
   | { ok: true; codigo: string; id: number }
-  | { ok: false; erro: string; status: number }
+  | { ok: false; erro: string; status: number; incerta?: boolean }
 
 export type StatusDeAprovacao = {
   status: 'aguardando' | 'aprovado' | 'rejeitado' | 'rascunho'
@@ -133,9 +134,7 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
    * lá em vez de mandar preencher um cartão que a tela nem mostra.
    */
   const doCanal = dados.canal === 'sms'
-  const ondeCadastrar = doCanal
-    ? ' Cadastre no canal, em Canais — você preenche uma vez só.'
-    : ''
+  const ondeCadastrar = doCanal ? ' Cadastre no canal, em Canais — você preenche uma vez só.' : ''
 
   if (!perfil.nome.trim() || !perfil.nome2.trim()) {
     return `O Monitor de Envios exige dois nomes de perfil: o principal e o reserva.${ondeCadastrar}`
@@ -204,11 +203,7 @@ export function conferirSubmissao(dados: SubmissaoDaCampanha): string | null {
 
 /** Baixa uma imagem para repassar como arquivo. Eles só aceitam upload. */
 async function baixar(url: string, rotulo: string): Promise<Blob> {
-  const resposta = await fetch(url, { signal: AbortSignal.timeout(20_000) })
-  if (!resposta.ok) {
-    throw new Error(`não deu para baixar ${rotulo} (HTTP ${resposta.status})`)
-  }
-  return await resposta.blob()
+  return baixarArquivoPublico(url, rotulo.includes('perfil') ? 5 * 1024 * 1024 : 25 * 1024 * 1024)
 }
 
 function nomeDoArquivo(url: string, padrao: string): string {
@@ -295,7 +290,11 @@ export async function submeterCampanha(
     }
   }
 
-  form.set('base_dados', new Blob([dados.base.conteudo], { type: 'text/csv' }), dados.base.nomeArquivo)
+  form.set(
+    'base_dados',
+    new Blob([dados.base.conteudo], { type: 'text/csv' }),
+    dados.base.nomeArquivo,
+  )
 
   let resposta: Response
   try {
@@ -305,23 +304,28 @@ export async function submeterCampanha(
       // Base grande sobe devagar; o teto do plano é 60s de função.
       signal: AbortSignal.timeout(50_000),
     })
-  } catch (erro) {
+  } catch {
     return {
       ok: false,
-      erro: erro instanceof Error ? erro.message : 'o Monitor de Envios não respondeu',
+      erro: 'Envio sem confirmação do provedor. Confira no Monitor antes de repetir a campanha.',
+      incerta: true,
       status: 0,
     }
   }
 
-  const corpo = (await lerJson(resposta)) as
-    | { success?: boolean; message?: string; id?: number; codigo_acompanhamento?: string }
-    | null
+  const corpo = (await lerJson(resposta)) as {
+    success?: boolean
+    message?: string
+    id?: number
+    codigo_acompanhamento?: string
+  } | null
 
   if (!resposta.ok || !corpo?.success || !corpo.codigo_acompanhamento) {
     return {
       ok: false,
       erro: corpo?.message ?? `O Monitor de Envios recusou (HTTP ${resposta.status}).`,
       status: resposta.status,
+      incerta: resposta.status >= 500 || (resposta.ok && !corpo?.codigo_acompanhamento),
     }
   }
 
@@ -380,7 +384,11 @@ async function consultar(
   })
 
   if (resposta.status === 429) throw new Error('limite de consultas do Monitor de Envios atingido')
-  const corpo = (await lerJson(resposta)) as { success?: boolean; message?: string; data?: unknown } | null
+  const corpo = (await lerJson(resposta)) as {
+    success?: boolean
+    message?: string
+    data?: unknown
+  } | null
   if (!resposta.ok || !corpo?.success) {
     throw new Error(corpo?.message ?? `Monitor de Envios respondeu HTTP ${resposta.status}`)
   }
@@ -426,7 +434,9 @@ export async function progressoDaCampanha(
     quantidadeTotalEnviada?: number | string
   } | null
 
-  const enviadas = Number(dados?.quantidadeEnviada ?? 0)
+  if (!dados || typeof dados !== 'object')
+    throw new Error('Progresso inválido recebido do provedor.')
+  const enviadas = Number(dados.quantidadeEnviada ?? 0)
   const recebidas = Number(dados?.quantidadeRecebida ?? 0)
 
   /*
@@ -442,6 +452,8 @@ export async function progressoDaCampanha(
    */
   const somadas = enviadas + recebidas
   const total = Number(dados?.quantidadeTotalEnviada ?? somadas)
+  if ([enviadas, recebidas, total].some((n) => !Number.isSafeInteger(n) || n < 0))
+    throw new Error('Contagem inválida recebida do provedor.')
 
   return {
     progresso: Number(dados?.progresso ?? 0),
@@ -540,9 +552,7 @@ export async function campanhasNoMonitor(
   )
 }
 
-export type TesteDeToken =
-  | { aceito: true; resposta: string }
-  | { aceito: false; resposta: string }
+export type TesteDeToken = { aceito: true; resposta: string } | { aceito: false; resposta: string }
 
 /**
  * Testa o token sem provocar erro do lado deles.
@@ -561,9 +571,7 @@ export type TesteDeToken =
  * autenticam igual em qualquer endpoint — então esta consulta prova o que a
  * submissão precisa provar, sem gastar cota de erro.
  */
-export async function conferirTokenNoUpload(
-  credencial: CredencialMonitor,
-): Promise<TesteDeToken> {
+export async function conferirTokenNoUpload(credencial: CredencialMonitor): Promise<TesteDeToken> {
   const url = new URL(`${BASE}/listar_campanhas.php`)
   url.searchParams.set('api_token', credencial.apiToken)
 
