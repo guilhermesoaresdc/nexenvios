@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { setTimeout as esperar } from 'node:timers/promises'
 import postgres from 'postgres'
 import { gerarHash } from '../src/lib/auth/senha'
+import { emitirToken } from '../src/lib/auth/tokens'
 
 async function main() {
   const bancoUrl = process.env.DATABASE_URL
@@ -39,7 +40,7 @@ async function main() {
       const senha = randomUUID()
       const [org] = await sql`insert into organizations (name, slug, is_platform) values ('Teste HTTP', ${id}, ${plataforma}) returning id`
       orgs.push(org!.id)
-      await sql`insert into users (org_id, name, email, password_hash, role) values (${org!.id}, 'Teste HTTP', ${email}, ${await gerarHash(senha)}, ${plataforma ? 'superadmin' : 'admin'})`
+      const [usuario] = await sql`insert into users (org_id, name, email, password_hash, role) values (${org!.id}, 'Teste HTTP', ${email}, ${await gerarHash(senha)}, ${plataforma ? 'superadmin' : 'admin'}) returning id`
       const destino = plataforma ? '/admin' : '/painel'
       const resultado = await consultar('/api/auth/entrar', {
         method: 'POST', headers: { Origin: origem, Accept: 'application/json' },
@@ -72,6 +73,39 @@ async function main() {
         const restrito = await consultar('/admin', { headers: { Cookie: cookie } })
         assert.equal(restrito.headers.get('location'), '/painel')
       }
+      const pedido = await consultar('/api/auth/recuperar', {
+        method: 'POST', headers: { Origin: origem, Accept: 'application/json' },
+        body: new URLSearchParams({ email }),
+      })
+      assert.equal(pedido.status, 200)
+      assert((await pedido.json()).ok)
+      // Exercita o mesmo emissor usado pelo e-mail, sem enviar mensagens no CI.
+      const token = await emitirToken(usuario!.id, 'recuperacao')
+      const link = await consultar(`/definir-senha/${token}`)
+      const paginaSenha = await link.text()
+      assert.equal(link.status, 200)
+      assert(paginaSenha.includes('Nova senha'))
+      assert(paginaSenha.includes('Salvar nova senha'))
+      const novaSenha = randomUUID()
+      const salvar = () => consultar('/api/auth/definir-senha', {
+        method: 'POST', headers: { Origin: origem, Accept: 'application/json' },
+        body: new URLSearchParams({ token, senha: novaSenha, confirmacao: novaSenha }),
+      })
+      const salvo = await salvar()
+      assert.equal(salvo.status, 200)
+      assert((await salvo.json()).ok)
+      assert.match(salvo.headers.get('set-cookie') ?? '', /Max-Age=0/i)
+      assert.equal((await salvar()).status, 400, 'O link não pode ser usado duas vezes.')
+      const sessaoAntiga = await consultar(destino, { headers: { Cookie: cookie } })
+      assert.equal(sessaoAntiga.headers.get('location'), '/entrar')
+      for (const [valor, status] of [[senha, 400], [novaSenha, 200]] as const) {
+        const login = await consultar('/api/auth/entrar', {
+          method: 'POST', headers: { Origin: origem, Accept: 'application/json' },
+          body: new URLSearchParams({ email, senha: valor }),
+        })
+        assert.equal(login.status, status, 'Somente a nova senha deve permitir entrada.')
+      }
+      console.log(`OK: recuperação ${plataforma ? 'Nex' : 'cliente'} → link → nova senha → login`)
     }
   } catch (erro) {
     console.error(saida)

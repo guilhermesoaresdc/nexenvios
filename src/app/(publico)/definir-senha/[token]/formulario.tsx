@@ -1,28 +1,27 @@
 'use client'
 
-import { useActionState } from 'react'
-import { useFormStatus } from 'react-dom'
 import { definirSenha } from '@/lib/auth/acoes'
 import { TAMANHO_MINIMO_SENHA } from '@/lib/auth/regras'
 import { Senha } from '@/components/ui/senha'
 import { Aviso, Botao } from '@/components/ui/base'
-
-function Enviar() {
-  const { pending } = useFormStatus()
-  return (
-    <Botao type="submit" bloco tamanho="lg" disabled={pending}>
-      {pending ? 'Salvando…' : 'Salvar e entrar'}
-    </Botao>
-  )
-}
+import { useEnvioDeAcesso } from '@/components/ui/envio-acesso'
 
 export function Formulario({ token }: { token: string }) {
-  const [estado, acao] = useActionState(definirSenha, undefined)
+  const { estado, enviar, enviarNativo, enviando } = useEnvioDeAcesso(definirSenha, '/api/auth/definir-senha')
+
+  if (estado?.ok) return (
+    <div className="mt-8 space-y-5" role="status">
+      <Aviso tom="ok" titulo="Senha salva">{estado.ok}</Aviso>
+      <a href="/entrar" className="block rounded-full bg-blue px-6 py-4 text-center font-semibold text-white">
+        Entrar na minha conta
+      </a>
+    </div>
+  )
 
   return (
-    <form action={acao} className="mt-8 space-y-5">
+    <form action={enviarNativo} onSubmit={enviar} aria-busy={enviando} className="mt-8 space-y-5">
       <input type="hidden" name="token" value={token} />
-      {estado?.erro ? <Aviso tom="erro">{estado.erro}</Aviso> : null}
+      {estado?.erro ? <div role="alert"><Aviso tom="erro">{estado.erro}</Aviso></div> : null}
 
       <Senha
         rotulo="Nova senha"
@@ -41,7 +40,9 @@ export function Formulario({ token }: { token: string }) {
         minLength={TAMANHO_MINIMO_SENHA}
       />
 
-      <Enviar />
+      <Botao type="submit" bloco tamanho="lg" disabled={enviando}>
+        {enviando ? 'Salvando…' : 'Salvar nova senha'}
+      </Botao>
     </form>
   )
 }

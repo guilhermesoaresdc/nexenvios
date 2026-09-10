@@ -3,15 +3,16 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { usuarioAtual } from '@/lib/auth/atual'
 import { ERROS_ENTRADA } from '@/lib/auth/entrada'
+import { Aviso } from '@/components/ui/base'
 import { Formulario } from './formulario'
 
 export const metadata: Metadata = { title: 'Entrar' }
 
-export default async function Entrar({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
+export default async function Entrar({ searchParams }: { searchParams: Promise<{ erro?: string; senha?: string }> }) {
   // Quem já está dentro não vê a porta.
   const usuario = await usuarioAtual()
   if (usuario) redirect(usuario.isTimeNex && !usuario.personificando ? '/admin' : '/painel')
-  const { erro } = await searchParams
+  const { erro, senha } = await searchParams
   const erroInicial = erro && Object.hasOwn(ERROS_ENTRADA, erro)
     ? ERROS_ENTRADA[erro as keyof typeof ERROS_ENTRADA] : undefined
 
@@ -22,6 +23,7 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
         Acompanhe seus disparos, sua base e seu saldo.
       </p>
 
+      {senha === 'alterada' ? <div className="mt-6" role="status"><Aviso tom="ok">Senha alterada. Entre usando sua nova senha.</Aviso></div> : null}
       <Formulario erroInicial={erroInicial} />
       <p className="mt-6 text-center text-sm text-muted">
         Recebeu um convite?{' '}

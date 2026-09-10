@@ -12,7 +12,7 @@ export const PRAZO_SESSAO_MS = 12_000
 /** A sessão não compartilha a fila de consultas do painel ou do motor. */
 export async function comBancoDeSessao<T>(
   executar: (banco: Db, cliente: ReturnType<typeof postgres>) => Promise<T>,
-  operacao: 'validar' | 'entrar' = 'validar',
+  operacao: 'validar' | 'entrar' | 'recuperar' | 'conferir-link' | 'emitir-link' | 'definir-senha' = 'validar',
 ): Promise<T> {
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL não configurada.')

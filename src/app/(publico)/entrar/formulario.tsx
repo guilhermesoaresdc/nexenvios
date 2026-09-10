@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useState, type FormEvent } from 'react'
-import Link from 'next/link'
 import { Senha } from '@/components/ui/senha'
 import { Aviso, Botao, Campo, Entrada } from '@/components/ui/base'
 
@@ -73,9 +72,9 @@ export function Formulario({ erroInicial }: { erroInicial?: string }) {
       </Botao>
 
       <p className="text-center">
-        <Link href="/recuperar" className="text-[.86rem] font-semibold text-muted hover:text-blue">
+        <a href="/recuperar" className="text-[.86rem] font-semibold text-muted hover:text-blue">
           Esqueci minha senha
-        </Link>
+        </a>
       </p>
     </form>
   )

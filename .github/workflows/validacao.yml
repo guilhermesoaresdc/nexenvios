@@ -39,4 +39,4 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Verificar login e navegação HTTP no build
-        run: node --import tsx scripts/verificar-login.ts
+        run: node --conditions=react-server --import tsx scripts/verificar-login.ts
