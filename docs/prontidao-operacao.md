@@ -6,8 +6,8 @@ Revisão de 10/09/2026, sobre `1b38152394eb0bfae510cb8c4fc79a304fa6ec14`.
 
 | Área | Endereço | Comportamento |
 | --- | --- | --- |
-| Entrada de clientes | `/entrar` | Login, senha visível por opção, recuperação e primeiro acesso; redirecionamento conforme o papel. |
-| Entrada dos sócios | `/entrar/admin` | Acesso exclusivo de usuários do time Nex na organização interna. A autorização também é conferida no servidor. |
+| Entrada única | `/entrar` | Clientes e sócios usam o mesmo login, com recuperação e primeiro acesso. A conta autenticada determina o destino: painel do cliente ou administração exclusiva. As permissões são conferidas no servidor. |
+| Compatibilidade com links antigos | `/entrar/admin` | Redireciona para `/entrar`, sem uma tela separada de acesso. |
 | Primeiro acesso | `/primeiro-acesso` | Solicita link para a conta previamente criada pela Nex. Não permite cadastro público sem autorização. |
 | Recuperação | `/recuperar` e `/definir-senha/[token]` | Link de uso único; novo link invalida os anteriores; mudança de senha derruba sessões antigas. |
 | Gestão dos sócios | `/admin` | Clientes, usuários, time Nex, preços, provedores e envios, com as autorizações centralizadas. |

@@ -58,7 +58,7 @@ function formulario(email: string) {
   form.set('senha', 'SenhaTeste12345')
   return form
 }
-describe('entrada em rede compartilhada', () => {
+describe('entrada única', () => {
   beforeEach(() => {
     mocks.tentativas.clear()
     mocks.criarSessao.mockClear().mockResolvedValue({ token: 'sessao-ficticia' })
@@ -81,6 +81,20 @@ describe('entrada em rede compartilhada', () => {
       )
     }
     expect(mocks.criarSessao).toHaveBeenCalledTimes(12)
+  })
+  it.each([
+    { papel: 'superadmin', plataforma: true, destino: '/admin' },
+    { papel: 'suporte', plataforma: true, destino: '/admin' },
+    { papel: 'admin', plataforma: false, destino: '/painel' },
+    { papel: 'superadmin', plataforma: false, destino: '/painel' },
+  ])('direciona $papel (plataforma: $plataforma) para $destino', async ({ papel, plataforma, destino }) => {
+    mocks.consulta.limit.mockResolvedValue([
+      { id: 'usuario', hash: 'hash-ficticio', ativo: true, orgStatus: 'ativo', papel, plataforma },
+    ])
+    await expect(entrar(undefined, formulario('pessoa@example.test'))).rejects.toThrow(
+      `redirect:${destino}`,
+    )
+    expect(mocks.criarSessao).toHaveBeenCalledTimes(1)
   })
   it('mantém o bloqueio da origem para tentativas inválidas', async () => {
     mocks.confere.mockResolvedValue(false)

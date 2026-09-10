@@ -74,11 +74,6 @@ async function entrarInterno(
     return { erro: 'Esta conta foi encerrada. Fale com o suporte da Nex Envios.' }
   }
 
-  if (
-    form.get('area') === 'nex' &&
-    (!conta.plataforma || !['superadmin', 'suporte'].includes(conta.papel))
-  )
-    return { erro: 'Este acesso é exclusivo do time Nex. Entre pela área do cliente.' }
   await limparTentativas(`conta:${dados.data.email}`)
   await limparTentativas(`entrar:${ip}`)
 
