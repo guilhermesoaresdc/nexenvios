@@ -1,18 +1,18 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { eq, sql as raw } from 'drizzle-orm'
+import { redirect, unstable_rethrow } from 'next/navigation'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/db'
-import { auditLog, organizations, users } from '@/db/schema'
+import { organizations, users } from '@/db/schema'
 import { criarLog } from '@/lib/log'
 import { apagarCookieSessao, gravarCookieSessao, lerTokenSessao } from './cookies'
 import { limparTentativas, registrarTentativa } from './limite'
 import { TAMANHO_MINIMO_SENHA } from './regras'
 import { conferirSenha, gerarHash } from './senha'
-import { criarSessao, encerrarSessao, encerrarTodasAsSessoes, TTL_SESSAO_MS } from './sessao'
-import { conferirToken, emitirToken, queimarToken } from './tokens'
+import { criarSessao, encerrarSessao, TTL_SESSAO_MS } from './sessao'
+import { consumirTokenDeSenha, emitirToken } from './tokens'
 
 const log = criarLog('auth')
 
@@ -20,7 +20,7 @@ export type EstadoDoFormulario = { erro?: string; ok?: string } | undefined
 
 const entrada = z.object({
   email: z.string().trim().toLowerCase().email('Informe um e-mail válido.'),
-  senha: z.string().min(1, 'Informe a senha.'),
+  senha: z.string().min(1, 'Informe a senha.').max(200, 'A senha deve ter até 200 caracteres.'),
 })
 
 async function origem(): Promise<{ ip: string; agente: string }> {
@@ -29,7 +29,7 @@ async function origem(): Promise<{ ip: string; agente: string }> {
   return { ip, agente: h.get('user-agent') ?? '' }
 }
 
-export async function entrar(
+async function entrarInterno(
   _anterior: EstadoDoFormulario,
   form: FormData,
 ): Promise<EstadoDoFormulario> {
@@ -39,8 +39,9 @@ export async function entrar(
   }
 
   const { ip } = await origem()
-  const { bloqueado } = registrarTentativa(`entrar:${ip}`)
-  if (bloqueado) {
+  const { bloqueado } = await registrarTentativa(`entrar:${ip}`)
+  const porConta = await registrarTentativa(`conta:${dados.data.email}`)
+  if (bloqueado || porConta.bloqueado) {
     return { erro: 'Tentativas demais. Espere alguns minutos antes de tentar de novo.' }
   }
 
@@ -50,6 +51,8 @@ export async function entrar(
       hash: users.passwordHash,
       ativo: users.active,
       orgStatus: organizations.status,
+      papel: users.role,
+      plataforma: organizations.isPlatform,
     })
     .from(users)
     .innerJoin(organizations, eq(organizations.id, users.orgId))
@@ -71,14 +74,21 @@ export async function entrar(
     return { erro: 'Esta conta foi encerrada. Fale com o suporte da Nex Envios.' }
   }
 
-  limparTentativas(`entrar:${ip}`)
+  if (
+    form.get('area') === 'nex' &&
+    (!conta.plataforma || !['superadmin', 'suporte'].includes(conta.papel))
+  )
+    return { erro: 'Este acesso é exclusivo do time Nex. Entre pela área do cliente.' }
+  await limparTentativas(`conta:${dados.data.email}`)
 
   const { ip: enderecoIp, agente } = await origem()
   const { token } = await criarSessao(conta.id, { ip: enderecoIp, userAgent: agente })
   await gravarCookieSessao(token, new Date(Date.now() + TTL_SESSAO_MS))
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, conta.id))
 
-  redirect('/painel')
+  redirect(
+    conta.plataforma && ['superadmin', 'suporte'].includes(conta.papel) ? '/admin' : '/painel',
+  )
 }
 
 export async function sair(): Promise<void> {
@@ -98,7 +108,7 @@ const pedido = z.object({
  * A resposta é sempre a mesma, exista a conta ou não: a tela de recuperação
  * não pode virar um verificador de quais e-mails são clientes.
  */
-export async function pedirRecuperacao(
+async function pedirRecuperacaoInterno(
   _anterior: EstadoDoFormulario,
   form: FormData,
 ): Promise<EstadoDoFormulario> {
@@ -106,7 +116,7 @@ export async function pedirRecuperacao(
   if (!dados.success) return { erro: dados.error.issues[0]?.message ?? 'E-mail inválido.' }
 
   const { ip } = await origem()
-  const { bloqueado } = registrarTentativa(`recuperar:${ip}`)
+  const { bloqueado } = await registrarTentativa(`recuperar:${ip}`)
   if (bloqueado) return { erro: 'Pedidos demais. Espere alguns minutos.' }
 
   const [conta] = await db
@@ -122,14 +132,17 @@ export async function pedirRecuperacao(
   }
 
   return {
-    ok: 'Se este e-mail estiver cadastrado, o link de recuperação já está a caminho. Ele vale por uma hora.',
+    ok: 'Se o e-mail estiver cadastrado e a conta estiver ativa, você receberá um link válido por uma hora. Confira também o spam. Se não chegar, fale com o administrador da sua conta.',
   }
 }
 
 const novaSenha = z
   .object({
-    token: z.string().min(1),
-    senha: z.string().min(TAMANHO_MINIMO_SENHA, `Use pelo menos ${TAMANHO_MINIMO_SENHA} caracteres.`),
+    token: z.string().min(1).max(200),
+    senha: z
+      .string()
+      .max(200)
+      .min(TAMANHO_MINIMO_SENHA, `Use pelo menos ${TAMANHO_MINIMO_SENHA} caracteres.`),
     confirmacao: z.string(),
   })
   .refine((v) => v.senha === v.confirmacao, {
@@ -137,7 +150,7 @@ const novaSenha = z
     path: ['confirmacao'],
   })
 
-export async function definirSenha(
+async function definirSenhaInterno(
   _anterior: EstadoDoFormulario,
   form: FormData,
 ): Promise<EstadoDoFormulario> {
@@ -148,30 +161,57 @@ export async function definirSenha(
   })
   if (!dados.success) return { erro: dados.error.issues[0]?.message ?? 'Confira os campos.' }
 
-  const conferido = await conferirToken(dados.data.token)
+  const { ip: endereco } = await origem()
+  if ((await registrarTentativa(`senha:${endereco}`)).bloqueado)
+    return { erro: 'Tentativas demais. Espere alguns minutos.' }
+  const conferido = await consumirTokenDeSenha(dados.data.token, await gerarHash(dados.data.senha))
   if (!conferido.ok) {
     const { MOTIVO_DO_LINK } = await import('./regras')
     return { erro: MOTIVO_DO_LINK[conferido.motivo] ?? 'Este link não serve mais.' }
   }
 
-  const hash = await gerarHash(dados.data.senha)
-  await db.update(users).set({ passwordHash: hash }).where(eq(users.id, conferido.userId))
-  await queimarToken(dados.data.token)
-  // Trocar a senha derruba tudo que estava aberto — inclusive a sessão de
-  // quem eventualmente já estivesse dentro com a senha antiga.
-  await encerrarTodasAsSessoes(conferido.userId)
-
-  await db.insert(auditLog).values({
-    userId: conferido.userId,
-    action: 'senha.definida',
-    entity: 'user',
-    entityId: conferido.userId,
-    meta: raw`jsonb_build_object('proposito', ${conferido.proposito}::text)`,
-  })
-
   const { ip, agente } = await origem()
   const { token } = await criarSessao(conferido.userId, { ip, userAgent: agente })
   await gravarCookieSessao(token, new Date(Date.now() + TTL_SESSAO_MS))
 
-  redirect('/painel')
+  redirect('/entrar')
+}
+
+export async function entrar(
+  anterior: EstadoDoFormulario,
+  form: FormData,
+): Promise<EstadoDoFormulario> {
+  try {
+    return await entrarInterno(anterior, form)
+  } catch (erro) {
+    unstable_rethrow(erro)
+    log.error('falha temporária na autenticação', { operacao: 'entrar' })
+    return { erro: 'Não foi possível concluir agora. Tente novamente em instantes.' }
+  }
+}
+
+export async function pedirRecuperacao(
+  anterior: EstadoDoFormulario,
+  form: FormData,
+): Promise<EstadoDoFormulario> {
+  try {
+    return await pedirRecuperacaoInterno(anterior, form)
+  } catch (erro) {
+    unstable_rethrow(erro)
+    log.error('falha temporária na autenticação', { operacao: 'pedirRecuperacao' })
+    return { erro: 'Não foi possível concluir agora. Tente novamente em instantes.' }
+  }
+}
+
+export async function definirSenha(
+  anterior: EstadoDoFormulario,
+  form: FormData,
+): Promise<EstadoDoFormulario> {
+  try {
+    return await definirSenhaInterno(anterior, form)
+  } catch (erro) {
+    unstable_rethrow(erro)
+    log.error('falha temporária na autenticação', { operacao: 'definirSenha' })
+    return { erro: 'Não foi possível concluir agora. Tente novamente em instantes.' }
+  }
 }

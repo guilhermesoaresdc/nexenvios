@@ -22,7 +22,7 @@ export function Formulario() {
   if (estado?.ok) {
     return (
       <div className="mt-8">
-        <Aviso tom="ok" titulo="Link enviado">
+        <Aviso tom="ok" titulo="Solicitação recebida">
           {estado.ok}
         </Aviso>
       </div>

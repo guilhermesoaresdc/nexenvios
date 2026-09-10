@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from 'react'
 import { useFormStatus } from 'react-dom'
+import Link from 'next/link'
+import { SegredoDeUmaVez } from '../../usuarios/painel'
 import { criarCliente } from '../acoes'
 import {
   Aviso,
@@ -32,6 +34,31 @@ export function Formulario() {
   const [apelido, setApelido] = useState('')
   const [tocouApelido, setTocouApelido] = useState(false)
   const [acesso, setAcesso] = useState<'senha' | 'convite'>('senha')
+
+  if (estado?.clienteId)
+    return (
+      <div className="max-w-2xl space-y-5">
+        <Aviso tom="ok" titulo={estado.ok}>
+          A conta está pronta para configurar os canais e os créditos.
+        </Aviso>
+        {estado.senha || estado.link ? (
+          <SegredoDeUmaVez
+            titulo={estado.senha ? 'Senha inicial' : 'Link de acesso'}
+            valor={estado.senha || estado.link || ''}
+            email={estado.email}
+            explica="Copie e entregue à pessoa. Este acesso não aparecerá na página do cliente."
+          />
+        ) : (
+          <p>Gere o link de acesso na página do cliente.</p>
+        )}
+        <Link
+          href={`/admin/clientes/${estado.clienteId}`}
+          className="inline-flex rounded-full bg-blue px-6 py-3 font-semibold text-white"
+        >
+          Abrir cliente
+        </Link>
+      </div>
+    )
 
   return (
     <form action={acao} className="grid grid-cols-[1.4fr_1fr] gap-6 max-lg:grid-cols-1">
@@ -84,7 +111,10 @@ export function Formulario() {
               </Selecao>
             </Campo>
 
-            <Campo rotulo="Limite de confiança" dica="Quanto o saldo pode furar antes de barrar o disparo.">
+            <Campo
+              rotulo="Limite de confiança"
+              dica="Quanto o saldo pode furar antes de barrar o disparo."
+            >
               <Entrada name="limite" type="number" min={0} step="0.01" defaultValue="0" />
             </Campo>
           </div>
@@ -101,7 +131,12 @@ export function Formulario() {
                 <Entrada name="adminNome" required placeholder="Renata Alves" />
               </Campo>
               <Campo rotulo="E-mail" dica="É com ele que a pessoa entra." obrigatorio>
-                <Entrada name="adminEmail" type="email" required placeholder="renata@empresa.com.br" />
+                <Entrada
+                  name="adminEmail"
+                  type="email"
+                  required
+                  placeholder="renata@empresa.com.br"
+                />
               </Campo>
             </div>
 
@@ -113,7 +148,9 @@ export function Formulario() {
                   type="button"
                   onClick={() => setAcesso('senha')}
                   className={`flex-1 rounded-[12px] border-2 px-3 py-2.5 text-left text-[.86rem] font-semibold transition-colors ${
-                    acesso === 'senha' ? 'border-blue bg-blue/6 text-blue' : 'border-line text-muted'
+                    acesso === 'senha'
+                      ? 'border-blue bg-blue/6 text-blue'
+                      : 'border-line text-muted'
                   }`}
                 >
                   Definir a senha agora
@@ -125,7 +162,9 @@ export function Formulario() {
                   type="button"
                   onClick={() => setAcesso('convite')}
                   className={`flex-1 rounded-[12px] border-2 px-3 py-2.5 text-left text-[.86rem] font-semibold transition-colors ${
-                    acesso === 'convite' ? 'border-blue bg-blue/6 text-blue' : 'border-line text-muted'
+                    acesso === 'convite'
+                      ? 'border-blue bg-blue/6 text-blue'
+                      : 'border-line text-muted'
                   }`}
                 >
                   Mandar convite
@@ -150,7 +189,10 @@ export function Formulario() {
         </Pad>
 
         <Pad>
-          <PadTitulo titulo="Contato comercial" descricao="Opcional. Serve para o time achar quem chamar." />
+          <PadTitulo
+            titulo="Contato comercial"
+            descricao="Opcional. Serve para o time achar quem chamar."
+          />
           <div className="grid grid-cols-3 gap-4 p-6 max-sm:grid-cols-1">
             <Campo rotulo="Nome">
               <Entrada name="contatoNome" placeholder="Renata Alves" />
@@ -169,7 +211,10 @@ export function Formulario() {
         <Pad className="lg:sticky lg:top-6">
           <PadTitulo titulo="Crédito inicial" />
           <div className="space-y-4 p-6">
-            <Campo rotulo="Valor em créditos" dica="1 crédito = R$ 1,00. Vira um lançamento no extrato do cliente.">
+            <Campo
+              rotulo="Valor em créditos"
+              dica="1 crédito = R$ 1,00. Vira um lançamento no extrato do cliente."
+            >
               <Entrada name="creditoInicial" type="number" min={0} step="0.01" defaultValue="0" />
             </Campo>
 

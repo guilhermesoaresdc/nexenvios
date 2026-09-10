@@ -1,20 +1,28 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db } from '@/db'
+import { db, type Db } from '@/db'
 import { auditLog, creditLedger, organizations, users } from '@/db/schema'
 import { exigirPoderTotal, exigirTimeNex } from '@/lib/auth/atual'
 import { encerrarTodasAsSessoes } from '@/lib/auth/sessao'
-import { criarUsuario } from '@/lib/acessos/servico'
+import { criarUsuario, gerarLinkDeAcesso } from '@/lib/acessos/servico'
 import { criarLog } from '@/lib/log'
 import { apelido } from '@/lib/ui'
 
 const log = criarLog('admin')
 
-export type Estado = { erro?: string; ok?: string; link?: string } | undefined
+export type Estado =
+  | {
+      erro?: string
+      ok?: string
+      link?: string
+      senha?: string
+      email?: string
+      clienteId?: string
+    }
+  | undefined
 
 const cadastro = {
   nome: z.string().trim().min(2, 'Informe o nome da empresa.').max(120),
@@ -26,7 +34,12 @@ const cadastro = {
     .max(48),
   documento: z.string().trim().max(30).optional().or(z.literal('')),
   contatoNome: z.string().trim().max(120).optional().or(z.literal('')),
-  contatoEmail: z.string().trim().toLowerCase().email('E-mail de contato inválido.').or(z.literal('')),
+  contatoEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('E-mail de contato inválido.')
+    .or(z.literal('')),
   contatoTelefone: z.string().trim().max(30).optional().or(z.literal('')),
   fuso: z.string().trim().min(3).max(60),
   limite: z.coerce.number().min(0).max(1_000_000),
@@ -71,7 +84,9 @@ export async function criarCliente(_anterior: Estado, form: FormData): Promise<E
     .where(eq(users.email, dados.data.adminEmail))
     .limit(1)
   if (jaExiste) {
-    return { erro: 'Já existe um usuário com este e-mail. Use outro endereço para o administrador.' }
+    return {
+      erro: 'Já existe um usuário com este e-mail. Use outro endereço para o administrador.',
+    }
   }
 
   const [duplicada] = await db
@@ -81,75 +96,94 @@ export async function criarCliente(_anterior: Estado, form: FormData): Promise<E
     .limit(1)
   if (duplicada) return { erro: 'Este apelido já está em uso. Escolha outro.' }
 
-  const [org] = await db
-    .insert(organizations)
-    .values({
-      name: dados.data.nome,
-      slug: dados.data.apelido,
-      document: dados.data.documento || null,
-      contactName: dados.data.contatoNome || null,
-      contactEmail: dados.data.contatoEmail || null,
-      contactPhone: dados.data.contatoTelefone || null,
-      timezone: dados.data.fuso,
-      creditLimit: String(dados.data.limite),
-      // O saldo NASCE ZERO. Quem move crédito é o razão, sempre: um valor
-      // gravado aqui direto não teria lançamento, e o extrato do cliente
-      // começaria mentindo.
-      credits: '0',
+  const resultado = await db
+    .transaction(async (tx) => {
+      const [org] = await tx
+        .insert(organizations)
+        .values({
+          name: dados.data.nome,
+          slug: dados.data.apelido,
+          document: dados.data.documento || null,
+          contactName: dados.data.contatoNome || null,
+          contactEmail: dados.data.contatoEmail || null,
+          contactPhone: dados.data.contatoTelefone || null,
+          timezone: dados.data.fuso,
+          creditLimit: String(dados.data.limite),
+          // O saldo NASCE ZERO. Quem move crédito é o razão, sempre: um valor
+          // gravado aqui direto não teria lançamento, e o extrato do cliente
+          // começaria mentindo.
+          credits: '0',
+        })
+        .returning({ id: organizations.id })
+
+      if (!org) throw new Error('Não foi possível criar o cliente.')
+
+      /*
+       * O primeiro acesso passa pelo mesmo serviço das outras telas. Duplicar a
+       * criação de usuário aqui era o caminho para as travas divergirem — e é
+       * exatamente onde uma trava esquecida não dói até doer.
+       */
+      const acesso = await criarUsuario(
+        admin,
+        {
+          orgId: org.id,
+          nome: dados.data.adminNome,
+          email: dados.data.adminEmail,
+          papel: 'admin',
+          acesso: dados.data.adminAcesso,
+          senha: dados.data.adminSenha || undefined,
+        },
+        tx as unknown as Db,
+        false,
+      )
+      if (!acesso.ok) throw new Error(acesso.erro)
+
+      if (dados.data.creditoInicial > 0) {
+        await tx.insert(creditLedger).values({
+          orgId: org.id,
+          kind: 'recarga',
+          delta: String(dados.data.creditoInicial),
+          description: 'Crédito inicial',
+          createdBy: admin.id,
+        })
+      }
+
+      await tx.insert(auditLog).values({
+        orgId: org.id,
+        userId: admin.id,
+        action: 'cliente.criado',
+        entity: 'organization',
+        entityId: org.id,
+        meta: { nome: dados.data.nome, credito: dados.data.creditoInicial },
+      })
+
+      return { orgId: org.id, acesso: acesso.valor }
     })
-    .returning({ id: organizations.id })
+    .catch(() => null)
+  if (!resultado)
+    return {
+      erro: 'Não foi possível criar o cliente. Confira e-mail, apelido e senha (mínimo de 10 caracteres) e tente novamente.',
+    }
 
-  if (!org) return { erro: 'Não foi possível criar o cliente.' }
-
-  /*
-   * O primeiro acesso passa pelo mesmo serviço das outras telas. Duplicar a
-   * criação de usuário aqui era o caminho para as travas divergirem — e é
-   * exatamente onde uma trava esquecida não dói até doer.
-   */
-  const acesso = await criarUsuario(admin, {
-    orgId: org.id,
-    nome: dados.data.adminNome,
-    email: dados.data.adminEmail,
-    papel: 'admin',
-    acesso: dados.data.adminAcesso,
-    senha: dados.data.adminSenha || undefined,
-  })
-
-  if (dados.data.creditoInicial > 0) {
-    await db.insert(creditLedger).values({
-      orgId: org.id,
-      kind: 'recarga',
-      delta: String(dados.data.creditoInicial),
-      description: 'Crédito inicial',
-      createdBy: admin.id,
-    })
+  let link: string | undefined
+  let enviado = false
+  if (dados.data.adminAcesso === 'convite') {
+    const convite = await gerarLinkDeAcesso(admin, resultado.acesso.usuarioId)
+    if (convite.ok) {
+      link = convite.valor.link
+      enviado = convite.valor.enviado
+    }
   }
-
-  await db.insert(auditLog).values({
-    orgId: org.id,
-    userId: admin.id,
-    action: 'cliente.criado',
-    entity: 'organization',
-    entityId: org.id,
-    meta: { nome: dados.data.nome, credito: dados.data.creditoInicial },
-  })
-
-  log.info('cliente criado', { org: org.id })
+  log.info('cliente criado', { org: resultado.orgId })
   revalidatePath('/admin/clientes')
   revalidatePath('/admin/usuarios')
-
-  /*
-   * A senha ou o link vão na URL para a tela de detalhe poder mostrá-los uma
-   * vez. Não é o lugar mais bonito para um segredo, mas ele é de uso único e
-   * a alternativa — perder a senha recém-criada num redirect — é pior.
-   */
-  const parametro = acesso.ok
-    ? acesso.valor.senha
-      ? `senha=${encodeURIComponent(acesso.valor.senha)}`
-      : `convite=${encodeURIComponent(acesso.valor.link ?? '')}`
-    : `aviso=${encodeURIComponent(acesso.erro)}`
-
-  redirect(`/admin/clientes/${org.id}?${parametro}`)
+  return {
+    ok: enviado ? 'Cliente criado e convite enviado.' : 'Cliente criado. Copie o acesso abaixo.',
+    clienteId: resultado.orgId,
+    email: resultado.acesso.email,
+    senha: resultado.acesso.senha,
+    link,
+  }
 }
 
 const edicao = z.object({ orgId: z.string().uuid(), ...cadastro })
@@ -211,6 +245,13 @@ export async function mudarStatus(_anterior: Estado, form: FormData): Promise<Es
     status: form.get('status'),
   })
   if (!dados.success) return { erro: 'Status inválido.' }
+
+  const [alvo] = await db
+    .select({ plataforma: organizations.isPlatform })
+    .from(organizations)
+    .where(eq(organizations.id, dados.data.orgId))
+  if (!alvo) return { erro: 'Cliente não encontrado.' }
+  if (alvo.plataforma) return { erro: 'A conta interna da Nex não pode ser suspensa ou encerrada.' }
 
   await db
     .update(organizations)

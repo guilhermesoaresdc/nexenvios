@@ -8,16 +8,28 @@ export const metadata: Metadata = { title: 'Entrar' }
 
 export default async function Entrar() {
   // Quem já está dentro não vê a porta.
-  if (await usuarioAtual()) redirect('/painel')
+  const usuario = await usuarioAtual()
+  if (usuario) redirect(usuario.isTimeNex && !usuario.personificando ? '/admin' : '/painel')
 
   return (
     <>
-      <h1 className="text-[1.75rem] leading-tight">Entrar no painel</h1>
+      <h1 className="text-[1.75rem] leading-tight">Acesse sua conta</h1>
       <p className="mt-2 text-[.95rem] leading-relaxed text-muted">
         Acompanhe seus disparos, sua base e seu saldo.
       </p>
 
       <Formulario />
+      <p className="mt-6 text-center text-sm text-muted">
+        Recebeu um convite?{' '}
+        <Link href="/primeiro-acesso" className="font-semibold text-blue">
+          Primeiro acesso
+        </Link>
+      </p>
+      <p className="mt-3 text-center text-sm">
+        <Link href="/entrar/admin" className="text-muted hover:text-blue">
+          Acesso do time Nex →
+        </Link>
+      </p>
 
       <p className="mt-8 text-center text-[.86rem] text-muted">
         Ainda não é cliente?{' '}

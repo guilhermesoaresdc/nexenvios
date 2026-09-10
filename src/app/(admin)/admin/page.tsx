@@ -1,3 +1,4 @@
+import { ResumoDelegado } from '@/components/shell/resumo-delegado'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { exigirTimeNex } from '@/lib/auth/atual'
@@ -25,7 +26,7 @@ const ACAO_LABEL: Record<string, string> = {
 }
 
 export default async function VisaoGeral() {
-  await exigirTimeNex()
+  const usuario = await exigirTimeNex()
 
   const [resumo, consumo, registros, batimento] = await Promise.all([
     resumoGeral(),
@@ -46,6 +47,15 @@ export default async function VisaoGeral() {
         descricao="A operação inteira da Nex Envios — todos os clientes, em um lugar."
       />
 
+      {usuario.isSuperadmin ? (
+        <Link
+          href="/admin/operacao"
+          className="mb-6 flex items-center justify-between rounded-2xl border border-line bg-white p-5 font-semibold text-blue"
+        >
+          Verificar prontidão da operação <span aria-hidden="true">→</span>
+        </Link>
+      ) : null}
+      <ResumoDelegado global />
       <div className="grid grid-cols-4 gap-4 max-lg:grid-cols-2 max-sm:grid-cols-1">
         <Numero
           rotulo="Clientes"
@@ -97,7 +107,10 @@ export default async function VisaoGeral() {
             titulo="Quem mais consumiu"
             descricao="Últimos 30 dias, por cliente e canal."
             acao={
-              <Link href="/admin/clientes" className="text-[.84rem] font-semibold text-blue hover:underline">
+              <Link
+                href="/admin/clientes"
+                className="text-[.84rem] font-semibold text-blue hover:underline"
+              >
                 Ver clientes
               </Link>
             }
@@ -119,7 +132,10 @@ export default async function VisaoGeral() {
               </thead>
               <tbody>
                 {consumo.slice(0, 12).map((l) => (
-                  <tr key={`${l.orgId}-${l.canal}`} className="transition-colors hover:bg-paper-alt/60">
+                  <tr
+                    key={`${l.orgId}-${l.canal}`}
+                    className="transition-colors hover:bg-paper-alt/60"
+                  >
                     <Td>
                       <Link
                         href={`/admin/clientes/${l.orgId}`}
@@ -141,7 +157,10 @@ export default async function VisaoGeral() {
         </Pad>
 
         <Pad>
-          <PadTitulo titulo="O que aconteceu" descricao="Registro das ações do time e dos clientes." />
+          <PadTitulo
+            titulo="O que aconteceu"
+            descricao="Registro das ações do time e dos clientes."
+          />
           {registros.length === 0 ? (
             <Vazio titulo="Nada registrado ainda" descricao="As ações do time aparecem aqui." />
           ) : (

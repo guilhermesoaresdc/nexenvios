@@ -1,5 +1,5 @@
 import { createServer, type Server, type ServerResponse } from 'node:http'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 
 /**
@@ -15,6 +15,8 @@ import { eq } from 'drizzle-orm'
  *   número cheio a cada consulta debitaria a campanha inteira a cada minuto.
  * - Rejeição vira campanha cancelada com o motivo à vista.
  */
+
+vi.mock('@/lib/channels/saida', () => ({ enderecoDeSaida: async () => '203.0.113.10' }))
 
 const PORTA = 4703
 const BASE_FALSA = `http://127.0.0.1:${PORTA}`
@@ -733,7 +735,9 @@ cenario('Monitor de Envios', () => {
      * acompanhamento e nada é cobrado. Não conseguir LER o status é problema
      * nosso de leitura, não notícia sobre a campanha.
      */
-    const criada = await (await import('@/lib/campanhas/servico')).criarCampanha(orgId, null, {
+    const criada = await (
+      await import('@/lib/campanhas/servico')
+    ).criarCampanha(orgId, null, {
       nome: 'Some do lado deles',
       canal: 'whatsapp_nao_oficial',
       configId,
@@ -868,7 +872,13 @@ cenario('Monitor de Envios', () => {
     // Sem canal declarado ou em WhatsApp: perfil é obrigatório, como antes.
     expect(conferirSubmissao({ nome: 'x', copy: 'oi', perfil: vazio, base })).toMatch(/dois nomes/)
     expect(
-      conferirSubmissao({ nome: 'x', copy: 'oi', perfil: vazio, base, canal: 'whatsapp_nao_oficial' }),
+      conferirSubmissao({
+        nome: 'x',
+        copy: 'oi',
+        perfil: vazio,
+        base,
+        canal: 'whatsapp_nao_oficial',
+      }),
     ).toMatch(/dois nomes/)
 
     /*
@@ -918,5 +928,53 @@ cenario('Monitor de Envios', () => {
       mediaUrl: 'https://exemplo/x.jpg',
     })
     expect(erro).toMatch(new RegExp(String(LIMITES.copyComMidia)))
+  })
+  it('consultas concorrentes e contagens regressivas não debitam duas vezes', async () => {
+    const { db } = await import('@/db')
+    const { campaigns, creditLedger } = await import('@/db/schema')
+    const { sincronizarExternas } = await import('@/lib/campanhas/externa')
+    estado.aprovacao = 'aprovado'
+    estado.emExecucao = true
+    estado.statusExecucao = 'enviando'
+    estado.campanhaSumida = false
+    estado.tokenRevogado = false
+    estado.enviadas = 3
+    estado.recebidas = 2
+    const [c] = await db
+      .insert(campaigns)
+      .values({
+        orgId,
+        configId,
+        name: 'Concorrência de cobrança',
+        channel: 'whatsapp_nao_oficial',
+        body: 'Teste',
+        audienceKind: 'todos',
+        audience: {},
+        status: 'aguardando',
+        total: 10,
+        unitPrice: '0.1',
+        estimatedCost: '1',
+        externalCode: 'codigo-concorrencia',
+        externalProvider: 'monitor_envios',
+        materialized: true,
+      })
+      .returning()
+    await Promise.all([sincronizarExternas(20), sincronizarExternas(20)])
+    await db.update(campaigns).set({ externalSyncedAt: null }).where(eq(campaigns.id, c!.id))
+    estado.enviadas = 1
+    estado.recebidas = 1
+    await sincronizarExternas(20)
+    await db.update(campaigns).set({ externalSyncedAt: null }).where(eq(campaigns.id, c!.id))
+    estado.enviadas = 3
+    estado.recebidas = 2
+    await sincronizarExternas(20)
+    const lancamentos = await db
+      .select()
+      .from(creditLedger)
+      .where(eq(creditLedger.campaignId, c!.id))
+    expect(lancamentos.reduce((total, l) => total + Number(l.delta), 0)).toBeCloseTo(-0.5)
+    const [atual] = await db.select().from(campaigns).where(eq(campaigns.id, c!.id))
+    expect(atual!.externalBilled).toBe(5)
+    expect(Number(atual!.actualCost)).toBeCloseTo(0.5)
   })
 })

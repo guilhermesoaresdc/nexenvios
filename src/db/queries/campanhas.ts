@@ -90,6 +90,7 @@ export type CampanhaDetalhada = LinhaDeCampanha & {
   precoUnitario: string
   /** Preenchido só quando a entrega foi delegada (Monitor de Envios). */
   externalCode: string | null
+  externalProvider: string | null
   externalStatus: string | null
   externalReason: string | null
   externalSyncedAt: Date | null
@@ -105,7 +106,7 @@ export async function verCampanha(
            c.rate_per_minute AS ritmo, c.jitter_ms AS jitter,
            c.quiet_start AS "janelaInicio", c.quiet_end AS "janelaFim",
            c.trimmed AS aparado, c.eleitoral, c.unit_price::text AS "precoUnitario",
-           c.external_code AS "externalCode", c.external_status AS "externalStatus",
+           c.external_code AS "externalCode", c.external_provider AS "externalProvider", c.external_status AS "externalStatus",
            c.external_reason AS "externalReason", c.external_synced_at AS "externalSyncedAt"
       FROM campaigns c
       LEFT JOIN users u ON u.id = c.created_by

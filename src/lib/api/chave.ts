@@ -17,7 +17,12 @@ import { apiKeys, organizations } from '@/db/schema'
 const PREFIXO = 'nex_live_'
 const TAMANHO_DO_ROTULO = 8
 
-export const ESCOPOS = ['envios:escrever', 'envios:ler', 'contatos:escrever', 'contatos:ler'] as const
+export const ESCOPOS = [
+  'envios:escrever',
+  'envios:ler',
+  'contatos:escrever',
+  'contatos:ler',
+] as const
 export type Escopo = (typeof ESCOPOS)[number]
 
 export const ESCOPO_LABEL: Record<Escopo, string> = {
@@ -50,7 +55,7 @@ export async function criarChave(
       name: nome,
       prefix: prefixo,
       keyHash: hash(segredo),
-      scopes: escopos.length > 0 ? escopos : ['envios:escrever', 'envios:ler'],
+      scopes: escopos,
       createdBy: autorId,
     })
     .returning({ id: apiKeys.id })
@@ -107,7 +112,7 @@ export async function autenticar(req: Request): Promise<Autenticacao | null> {
     .where(eq(apiKeys.prefix, prefixo))
     .limit(1)
 
-  if (!linha || linha.revokedAt) return null
+  if (!linha || linha.revokedAt || linha.orgStatus === 'cancelado') return null
 
   // Comparação em tempo constante: sem isso, o tempo de resposta entrega
   // quantos caracteres do hash bateram.
@@ -116,7 +121,7 @@ export async function autenticar(req: Request): Promise<Autenticacao | null> {
   if (esperado.length !== recebido.length || !timingSafeEqual(esperado, recebido)) return null
 
   // Carimbo do último uso, sem esperar: a resposta não deve atrasar por isto.
-  void db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, linha.id))
+  await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, linha.id))
 
   return { orgId: linha.orgId, escopos: linha.scopes, orgStatus: linha.orgStatus }
 }

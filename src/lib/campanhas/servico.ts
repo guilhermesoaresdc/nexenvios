@@ -139,7 +139,12 @@ export async function orcar(
     .where(eq(organizations.id, orgId))
     .limit(1)
 
-  const saldo = Number(org?.credits ?? 0)
+  const [reservas] = await sql<{ valor: string }[]>`
+    SELECT COALESCE(sum(greatest(estimated_cost - actual_cost, 0)), 0)::text AS valor
+    FROM campaigns WHERE org_id = ${orgId}
+      AND status IN ('preparando', 'agendada', 'aguardando', 'enviando', 'pausada')
+  `
+  const saldo = Number(org?.credits ?? 0) - Number(reservas?.valor ?? 0)
   const limite = Number(org?.creditLimit ?? 0)
 
   return {
@@ -234,49 +239,91 @@ export async function criarCampanha(
   const quietStart = dados.quietStart ?? 8
   const quietEnd = dados.quietEnd ?? 21
 
-  const [campanha] = await db
-    .insert(campaigns)
-    .values({
-      orgId,
-      name: dados.nome,
-      channel: dados.canal,
-      configId: dados.configId,
-      // Nasce preparando. Quem promove para 'agendada' é a materialização, e
-      // quem promove para 'enviando' é o motor — um caminho só para cada
-      // transição, sempre.
-      status: 'preparando',
-      body: corpo,
-      mediaUrl: dados.mediaUrl ?? null,
-      mediaType: dados.mediaType ?? null,
-      templateName: dados.templateName ?? null,
-      buttons: dados.botoes ?? [],
-      eleitoral,
-      audienceKind: fontes.length === 1 ? fontes[0]!.tipo : 'varias',
-      audience: fontes as unknown as Record<string, unknown>,
-      // O rótulo viaja junto e fica congelado: a lista pode ser apagada, e
-      // "para quem foi este disparo?" precisa continuar tendo resposta.
-      audienceLabels: fontes.map((f) => f.rotulo),
-      trimmed: orcamento.publico.aparado,
-      ratePerMinute,
-      jitterMs,
-      quietStart,
-      quietEnd,
-      scheduledAt: inicio,
-      total: orcamento.destinatarios,
-      pending: 0,
-      unitPrice: String(orcamento.precoPorEnvio),
-      estimatedCost: String(orcamento.total),
-      materialized: false,
-      materializeAt: inicio,
-      profileName: dados.perfil?.nome ?? null,
-      profilePhotoUrl: dados.perfil?.fotoUrl ?? null,
-      profileName2: dados.perfil?.nome2 ?? null,
-      profilePhotoUrl2: dados.perfil?.fotoUrl2 ?? null,
-      createdBy: usuarioId ?? null,
-    })
-    .returning({ id: campaigns.id })
+  const campanha = await db.transaction(async (tx) => {
+    const [conta] = await tx
+      .select({
+        saldo: organizations.credits,
+        limite: organizations.creditLimit,
+        status: organizations.status,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .for('update')
+    if (!conta || conta.status !== 'ativo') return null
+    const [reserva] = await tx
+      .select({
+        valor: raw<string>`COALESCE(sum(greatest(${campaigns.estimatedCost} - ${campaigns.actualCost}, 0)), 0)::text`,
+      })
+      .from(campaigns)
+      .where(
+        and(
+          eq(campaigns.orgId, orgId),
+          inArray(campaigns.status, [
+            'preparando',
+            'agendada',
+            'aguardando',
+            'enviando',
+            'pausada',
+          ]),
+        ),
+      )
+    if (orcamento.total > Number(conta.saldo) + Number(conta.limite) - Number(reserva?.valor ?? 0))
+      return null
+    const [criada] = await tx
+      .insert(campaigns)
+      .values({
+        orgId,
+        name: dados.nome,
+        channel: dados.canal,
+        configId: dados.configId,
+        // Nasce preparando. Quem promove para 'agendada' é a materialização, e
+        // quem promove para 'enviando' é o motor — um caminho só para cada
+        // transição, sempre.
+        status: canal.provedor === PROVEDOR_EXTERNO ? 'aguardando' : 'preparando',
+        externalProvider: canal.provedor === PROVEDOR_EXTERNO ? PROVEDOR_EXTERNO : null,
+        externalReason:
+          canal.provedor === PROVEDOR_EXTERNO
+            ? 'Submissão iniciada. Se não houver código externo, confira o provedor antes de repetir o envio.'
+            : null,
+        body: corpo,
+        mediaUrl: dados.mediaUrl ?? null,
+        mediaType: dados.mediaType ?? null,
+        templateName: dados.templateName ?? null,
+        buttons: dados.botoes ?? [],
+        eleitoral,
+        audienceKind: fontes.length === 1 ? fontes[0]!.tipo : 'varias',
+        audience: fontes as unknown as Record<string, unknown>,
+        // O rótulo viaja junto e fica congelado: a lista pode ser apagada, e
+        // "para quem foi este disparo?" precisa continuar tendo resposta.
+        audienceLabels: fontes.map((f) => f.rotulo),
+        trimmed: orcamento.publico.aparado,
+        ratePerMinute,
+        jitterMs,
+        quietStart,
+        quietEnd,
+        scheduledAt: inicio,
+        total: orcamento.destinatarios,
+        pending: 0,
+        unitPrice: String(orcamento.precoPorEnvio),
+        estimatedCost: String(orcamento.total),
+        materialized: canal.provedor === PROVEDOR_EXTERNO,
+        materializeAt: canal.provedor === PROVEDOR_EXTERNO ? null : inicio,
+        profileName: dados.perfil?.nome ?? null,
+        profilePhotoUrl: dados.perfil?.fotoUrl ?? null,
+        profileName2: dados.perfil?.nome2 ?? null,
+        profilePhotoUrl2: dados.perfil?.fotoUrl2 ?? null,
+        createdBy: usuarioId ?? null,
+      })
+      .returning({ id: campaigns.id })
 
-  if (!campanha) return { ok: false, erro: 'Não foi possível criar a campanha.' }
+    return criada
+  })
+
+  if (!campanha)
+    return {
+      ok: false,
+      erro: 'O saldo disponível mudou ou a conta foi suspensa. Confira as campanhas em andamento e tente novamente.',
+    }
 
   /*
    * Campanha delegada não materializa linha nenhuma.
@@ -317,8 +364,7 @@ export async function criarCampanha(
         .where(eq(campaigns.id, campanha.id))
       return {
         ok: false,
-        erro:
-          'Campanha eleitoral por este canal exige o CPF ou CNPJ do candidato e o partido — é o que permite acrescentar a frase de descadastro exigida por lei.',
+        erro: 'Campanha eleitoral por este canal exige o CPF ou CNPJ do candidato e o partido — é o que permite acrescentar a frase de descadastro exigida por lei.',
       }
     }
 
@@ -344,7 +390,8 @@ export async function criarCampanha(
       await db
         .update(campaigns)
         .set({
-          status: 'falhou',
+          status: entrega.incerta ? 'aguardando' : 'falhou',
+          externalProvider: entrega.incerta ? PROVEDOR_EXTERNO : null,
           // `materialized: true` fecha a porta do motor: sem isso ele
           // materializaria a campanha que acabou de falhar.
           materialized: true,
@@ -585,11 +632,11 @@ export async function materializarPendentes(orcamentoDeLinhas: number): Promise<
  */
 export async function eDelegada(orgId: string, campanhaId: string): Promise<boolean> {
   const [linha] = await db
-    .select({ codigo: campaigns.externalCode })
+    .select({ codigo: campaigns.externalCode, provedor: campaigns.externalProvider })
     .from(campaigns)
     .where(and(eq(campaigns.id, campanhaId), eq(campaigns.orgId, orgId)))
     .limit(1)
-  return Boolean(linha?.codigo)
+  return Boolean(linha?.codigo || linha?.provedor)
 }
 
 export async function pausar(orgId: string, campanhaId: string): Promise<boolean> {
@@ -622,7 +669,11 @@ export async function retomar(orgId: string, campanhaId: string): Promise<boolea
     .select({ pausedAt: campaigns.pausedAt, materialized: campaigns.materialized })
     .from(campaigns)
     .where(
-      and(eq(campaigns.id, campanhaId), eq(campaigns.orgId, orgId), eq(campaigns.status, 'pausada')),
+      and(
+        eq(campaigns.id, campanhaId),
+        eq(campaigns.orgId, orgId),
+        eq(campaigns.status, 'pausada'),
+      ),
     )
     .limit(1)
 

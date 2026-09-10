@@ -4,6 +4,7 @@ import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
 import { entrar } from '@/lib/auth/acoes'
+import { Senha } from '@/components/ui/senha'
 import { Aviso, Botao, Campo, Entrada } from '@/components/ui/base'
 
 function Enviar() {
@@ -15,12 +16,17 @@ function Enviar() {
   )
 }
 
-export function Formulario() {
+export function Formulario({ area = 'cliente' }: { area?: 'cliente' | 'nex' }) {
   const [estado, acao] = useActionState(entrar, undefined)
 
   return (
     <form action={acao} className="mt-8 space-y-5">
-      {estado?.erro ? <Aviso tom="erro">{estado.erro}</Aviso> : null}
+      <input type="hidden" name="area" value={area} />
+      {estado?.erro ? (
+        <div role="alert">
+          <Aviso tom="erro">{estado.erro}</Aviso>
+        </div>
+      ) : null}
 
       <Campo rotulo="E-mail">
         <Entrada
@@ -33,15 +39,13 @@ export function Formulario() {
         />
       </Campo>
 
-      <Campo rotulo="Senha">
-        <Entrada
-          name="senha"
-          type="password"
-          autoComplete="current-password"
-          required
-          placeholder="••••••••••"
-        />
-      </Campo>
+      <Senha
+        rotulo="Senha"
+        name="senha"
+        autoComplete="current-password"
+        required
+        placeholder="Sua senha"
+      />
 
       <Enviar />
 

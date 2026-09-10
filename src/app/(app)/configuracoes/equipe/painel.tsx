@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useTransition } from 'react'
+import { useActionState, useState, useTransition } from 'react'
 import { useFormStatus } from 'react-dom'
 import { PAPEL_LABEL, type UserRole } from '@/db/schema/enums'
 import { alternarAtivo, convidar, mudarPapel, reenviarConvite } from '../acoes'
@@ -72,6 +72,7 @@ export function LinhaDoUsuario({
   const [estadoPapel, acaoPapel] = useActionState(mudarPapel, undefined)
   const [estadoConvite, acaoConvite] = useActionState(reenviarConvite, undefined)
   const [ocupado, iniciar] = useTransition()
+  const [erro, setErro] = useState<string>()
 
   const travado = usuario.eu || ultimoAdmin
 
@@ -92,7 +93,11 @@ export function LinhaDoUsuario({
     return (
       <form action={acaoPapel} className="flex items-center gap-2">
         <input type="hidden" name="usuarioId" value={usuario.id} />
-        <Selecao name="papel" defaultValue={usuario.papel} className="min-w-[170px] py-2 text-[.84rem]">
+        <Selecao
+          name="papel"
+          defaultValue={usuario.papel}
+          className="min-w-[170px] py-2 text-[.84rem]"
+        >
           <option value="admin">{PAPEL_LABEL.admin}</option>
           <option value="operador">{PAPEL_LABEL.operador}</option>
           <option value="visualizador">{PAPEL_LABEL.visualizador}</option>
@@ -124,8 +129,12 @@ export function LinhaDoUsuario({
             tamanho="sm"
             disabled={ocupado}
             onClick={() => {
-              if (usuario.ativo && !confirm('Desativar? A pessoa perde o acesso agora mesmo.')) return
-              iniciar(() => void alternarAtivo(usuario.id, !usuario.ativo))
+              if (usuario.ativo && !confirm('Desativar? A pessoa perde o acesso agora mesmo.'))
+                return
+              iniciar(async () => {
+                const r = await alternarAtivo(usuario.id, !usuario.ativo)
+                setErro(r?.erro)
+              })
             }}
           >
             {usuario.ativo ? 'Desativar' : 'Reativar'}
@@ -133,6 +142,16 @@ export function LinhaDoUsuario({
         )}
       </div>
 
+      {erro ? (
+        <span role="alert" className="text-danger text-sm">
+          {erro}
+        </span>
+      ) : null}
+      {estadoConvite?.erro ? (
+        <span role="alert" className="text-danger text-sm">
+          {estadoConvite.erro}
+        </span>
+      ) : null}
       {estadoConvite?.link ? (
         <code className="max-w-[280px] truncate rounded bg-paper-alt px-2 py-1 font-mono text-[.7rem] text-navy">
           {estadoConvite.link}

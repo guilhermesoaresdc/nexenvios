@@ -41,7 +41,7 @@ export async function resumoDoPainel(orgId: string): Promise<ResumoDoPainel> {
         WHERE org_id = ${orgId} AND created_at >= now() - interval '30 days'
           AND status = 'respondido') AS "respostas30",
       (SELECT count(*)::int FROM campaigns
-        WHERE org_id = ${orgId} AND status IN ('preparando', 'agendada', 'enviando', 'pausada')) AS "campanhasAtivas",
+        WHERE org_id = ${orgId} AND status IN ('preparando', 'agendada', 'aguardando', 'enviando', 'pausada')) AS "campanhasAtivas",
       (SELECT count(*)::int FROM dispatches
         WHERE org_id = ${orgId} AND status = 'pendente') AS "naFila",
       (SELECT count(*)::int FROM contacts WHERE org_id = ${orgId}) AS contatos,
@@ -141,7 +141,7 @@ export async function campanhasEmCurso(orgId: string, limite = 5): Promise<Campa
            created_at AS "criadaEm", scheduled_at AS "agendadaPara"
       FROM campaigns
      WHERE org_id = ${orgId}
-       AND status IN ('preparando', 'agendada', 'enviando', 'pausada')
+       AND status IN ('preparando', 'agendada', 'aguardando', 'enviando', 'pausada')
      ORDER BY created_at DESC
      LIMIT ${limite}
   `
@@ -162,7 +162,7 @@ export async function primeirosPassos(orgId: string): Promise<PrimeirosPassos> {
       EXISTS (SELECT 1 FROM channel_configs
                WHERE (org_id = ${orgId} OR org_id IS NULL) AND active) AS "temCanal",
       EXISTS (SELECT 1 FROM contacts WHERE org_id = ${orgId}) AS "temContato",
-      EXISTS (SELECT 1 FROM dispatches WHERE org_id = ${orgId}) AS "temEnvio"
+      (EXISTS (SELECT 1 FROM dispatches WHERE org_id = ${orgId}) OR EXISTS (SELECT 1 FROM campaigns WHERE org_id = ${orgId})) AS "temEnvio"
   `
 
   return linha ?? { temCanal: false, temContato: false, temEnvio: false }

@@ -36,7 +36,12 @@ export async function gerarHash(senha: string): Promise<string> {
     throw new Error(`A senha precisa ter pelo menos ${TAMANHO_MINIMO_SENHA} caracteres.`)
   }
   const sal = randomBytes(TAMANHO_SAL)
-  const derivada = await scrypt(senha.normalize('NFKC'), sal, TAMANHO_CHAVE, { N, r, p, maxmem: MAX_MEM })
+  const derivada = await scrypt(senha.normalize('NFKC'), sal, TAMANHO_CHAVE, {
+    N,
+    r,
+    p,
+    maxmem: MAX_MEM,
+  })
   return ['scrypt', N, r, p, sal.toString('base64'), derivada.toString('base64')].join('$')
 }
 
@@ -45,7 +50,15 @@ export async function gerarHash(senha: string): Promise<string> {
  * em vez de lançar: um hash corrompido no banco não pode derrubar o login.
  */
 export async function conferirSenha(senha: string, guardado: string | null): Promise<boolean> {
-  if (!guardado) return false
+  if (!guardado) {
+    await scrypt(senha.normalize('NFKC'), Buffer.alloc(TAMANHO_SAL), TAMANHO_CHAVE, {
+      N,
+      r,
+      p,
+      maxmem: MAX_MEM,
+    })
+    return false
+  }
   const partes = guardado.split('$')
   if (partes.length !== 6) return false
 

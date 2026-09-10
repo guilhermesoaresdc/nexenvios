@@ -1,68 +1,75 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Marca } from '@/components/ui/marca'
 import { DOCUMENTOS } from '@/lib/juridico/documentos'
 
-/**
- * A casca das telas de porta: entrar, recuperar senha, definir senha.
- *
- * Metade azul-marinho com a promessa do produto, metade branca com o
- * formulário. No celular sobra só o formulário — quem está entrando pelo
- * telefone quer entrar, não ler.
- */
+export const metadata: Metadata = { robots: { index: false, follow: false } }
+
 export default function LayoutPublico({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[1fr_1.1fr]">
-      <aside className="relative hidden overflow-hidden bg-gradient-to-br from-navy to-navy-deep p-12 text-white lg:flex lg:flex-col lg:justify-between">
+    <div className="grid min-h-dvh bg-white lg:grid-cols-2">
+      <aside className="relative hidden overflow-hidden bg-navy-deep p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
           style={{
-            background:
-              'radial-gradient(600px 400px at 20% 10%, rgba(0,176,248,.22), transparent 60%), radial-gradient(500px 400px at 90% 90%, rgba(0,120,248,.18), transparent 60%)',
+            background: 'radial-gradient(ellipse at 0 0, rgba(0,176,248,.25), transparent 60%)',
           }}
         />
-        <Link href="/" className="relative">
+        <Link href="/" className="relative w-fit">
           <Marca size={30} claro />
         </Link>
-
-        <div className="relative max-w-md">
-          <p className="font-mono text-[.72rem] tracking-[.13em] text-cyan uppercase">
-            Disparos em massa
+        <div className="relative my-16 max-w-lg">
+          <p className="font-mono text-xs tracking-[.16em] text-cyan uppercase">
+            Sua operação, conectada
           </p>
-          <p className="mt-4 font-display text-[2rem] leading-[1.15] font-bold text-white">
-            Cinco canais. Uma única operação de disparo.
+          <h2 className="mt-5 font-display text-[clamp(2rem,3.6vw,3.8rem)] leading-[1.08] font-bold text-white">
+            Mais controle.
+            <br />
+            Do primeiro contato
+            <br />
+            <span className="text-cyan">ao resultado.</span>
+          </h2>
+          <p className="mt-6 max-w-sm text-base leading-relaxed text-[#c3d3f2]">
+            Organize seus contatos, acompanhe campanhas e consulte seu saldo em um só lugar.
           </p>
-          <p className="mt-4 text-[.98rem] leading-relaxed text-[#c3d3f2]">
-            WhatsApp Oficial, API não oficial, SMS, RCS e Torpedo de Voz — com ritmo, janela de
-            silêncio e descadastro respeitados em todos eles.
-          </p>
+          <div className="mt-10 rounded-2xl border border-white/15 bg-white/5 p-6">
+            <p className="text-sm font-semibold text-white">Tudo no seu painel</p>
+            <ul className="mt-4 space-y-3 text-sm text-[#c3d3f2]">
+              {[
+                'Contatos e listas da sua empresa',
+                'Acompanhamento dos envios',
+                'Saldo e histórico de consumo',
+              ].map((x) => (
+                <li key={x} className="flex gap-3">
+                  <span aria-hidden="true" className="text-cyan">
+                    ✓
+                  </span>
+                  {x}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-
-        <div className="relative flex flex-wrap gap-x-8 gap-y-3 font-mono text-[.72rem] tracking-[.1em] text-[#8fa6d6] uppercase">
-          <span>+100 milhões entregues</span>
-          <span>Corban · iGaming · Escala</span>
-        </div>
+        <p className="relative text-xs text-[#8fa6d6]">
+          Nex Envios · Sua comunicação em movimento.
+        </p>
       </aside>
-
-      <main className="flex items-center justify-center px-6 py-12">
+      <main className="flex items-center justify-center px-6 py-10 sm:px-12">
         <div className="w-full max-w-[420px]">
           <Link href="/" className="mb-10 inline-block lg:hidden">
             <Marca size={30} />
           </Link>
           {children}
-
-          {/*
-            Os documentos ficam à vista na porta de entrada.
-            Quem cria conta aceita os Termos ao entrar; ter que sair procurando
-            o que aceitou transforma o aceite em formalidade vazia.
-          */}
-          <p className="mt-10 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[.78rem] text-muted">
-            {DOCUMENTOS.map((d) => (
-              <Link key={d.rota} href={d.rota} className="transition-colors hover:text-navy">
-                {d.titulo}
-              </Link>
-            ))}
-          </p>
+          <div className="mt-10 border-t border-line pt-6">
+            <p className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted">
+              {DOCUMENTOS.map((d) => (
+                <Link key={d.rota} href={d.rota} className="hover:text-navy">
+                  {d.titulo}
+                </Link>
+              ))}
+            </p>
+          </div>
         </div>
       </main>
     </div>

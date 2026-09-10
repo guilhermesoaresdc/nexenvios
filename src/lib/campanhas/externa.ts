@@ -139,7 +139,7 @@ async function montarBase(orgId: string, fontes: Fonte[]): Promise<{ csv: string
 
 export type ResultadoDaEntrega =
   | { ok: true; codigo: string; total: number }
-  | { ok: false; erro: string }
+  | { ok: false; erro: string; incerta?: boolean }
 
 /** Submete a campanha e deixa ela aguardando a aprovação do outro lado. */
 export async function entregarAoMonitor(dados: DadosDaSubmissao): Promise<ResultadoDaEntrega> {
@@ -207,7 +207,7 @@ export async function entregarAoMonitor(dados: DadosDaSubmissao): Promise<Result
   if (recusa) return { ok: false, erro: recusa }
 
   const enviado = await submeterCampanha(credencial, submissao)
-  if (!enviado.ok) return { ok: false, erro: enviado.erro }
+  if (!enviado.ok) return { ok: false, erro: enviado.erro, incerta: enviado.incerta }
 
   await db
     .update(campaigns)
@@ -216,6 +216,7 @@ export async function entregarAoMonitor(dados: DadosDaSubmissao): Promise<Result
       externalCode: enviado.codigo,
       externalProvider: PROVEDOR,
       externalStatus: 'aguardando',
+      externalReason: null,
       externalSyncedAt: new Date(),
       total: base.total,
       pending: base.total,
@@ -326,7 +327,7 @@ export async function sincronizarExternas(limite = POR_BATIDA): Promise<ResumoDa
         // Voltou a responder: o aviso de "sem acompanhamento" sai junto.
         await db
           .update(campaigns)
-          .set({ externalSyncFailures: 0, externalReason: null })
+          .set({ externalSyncFailures: 0 })
           .where(eq(campaigns.id, campanha.id))
       }
       /*
@@ -411,6 +412,7 @@ async function sincronizarUma(
       .update(campaigns)
       .set({
         status: 'cancelada',
+        pending: 0,
         externalStatus: 'rejeitado',
         externalReason: aprovacao.motivoRejeicao,
         externalSyncedAt: new Date(),
@@ -426,7 +428,7 @@ async function sincronizarUma(
     // Ainda na fila deles. Nada mudou além do carimbo.
     await db
       .update(campaigns)
-      .set({ externalStatus: aprovacao.status, externalSyncedAt: new Date() })
+      .set({ externalStatus: aprovacao.status, externalSyncedAt: new Date(), externalReason: null })
       .where(eq(campaigns.id, campanha.id))
     return
   }
@@ -443,64 +445,77 @@ async function sincronizarUma(
    * a menos, e o número encolheria conforme as confirmações chegassem — o
    * débito travaria porque `processadas - billed` daria negativo.
    */
-  const teto = campanha.total || progresso.processadas
-  const processadas = Math.max(0, Math.min(progresso.processadas, teto))
-  const novas = Math.max(0, processadas - campanha.billed)
-
-  // O crédito sai pelo que andou desde a última conferência. `external_billed`
-  // é o que impede a próxima sincronização de cobrar tudo outra vez.
-  if (novas > 0) {
-    const custo = novas * Number(campanha.unitPrice)
-    if (custo > 0) {
-      await db.insert(creditLedger).values({
-        orgId: campanha.orgId,
-        kind: 'consumo',
-        delta: String(-custo),
-        description: `Envio pelo Monitor de Envios (${novas} mensagem(ns))`,
-        campaignId: campanha.id,
-      })
-      await db
-        .update(campaigns)
-        .set({ actualCost: raw`${campaigns.actualCost} + ${custo}::numeric` })
-        .where(eq(campaigns.id, campanha.id))
-      resumo.cobrado += custo
-    }
-  }
-
-  const terminou =
-    !aprovacao.emExecucao && (aprovacao.statusExecucao ?? '').toLowerCase().includes('finaliz')
-
-  await db
-    .update(campaigns)
-    .set({
-      status: terminou ? 'concluida' : 'enviando',
-      externalStatus: 'aprovado',
-      externalSyncedAt: new Date(),
-      externalBilled: processadas,
-      /*
-       * `sent` e `delivered` mapeiam UM PARA UM nos campos deles.
-       *
-       * A tela calcula `saidos = enviados + entregues`, ou seja, `sent` aqui
-       * significa "saiu e ainda não foi confirmado" — exatamente o que
-       * `quantidadeEnviada` quer dizer. Gravar o total processado em `sent`
-       * faria a soma contar os confirmados duas vezes e "Enviados" passar do
-       * total da campanha.
-       *
-       * A cobrança é que usa a soma, e é por isso que ela mora em
-       * `externalBilled` e não é derivada da tela.
-       */
-      sent: progresso.enviadas,
-      delivered: progresso.recebidas,
-      pending: Math.max(0, teto - processadas),
-      startedAt: raw`COALESCE(${campaigns.startedAt}, now())`,
-      finishedAt: terminou ? new Date() : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(campaigns.id, campanha.id))
-
-  if (terminou) resumo.concluidas += 1
-
   await guardarRespostas(campanha, credencial, codigo)
+  await db.transaction(async (tx) => {
+    await tx.execute(raw`SELECT id FROM organizations WHERE id = ${campanha.orgId} FOR UPDATE`)
+    const [atual] = await tx
+      .select({
+        billed: campaigns.externalBilled,
+        total: campaigns.total,
+        status: campaigns.status,
+      })
+      .from(campaigns)
+      .where(eq(campaigns.id, campanha.id))
+      .for('update')
+    if (!atual || ['cancelada', 'concluida'].includes(atual.status)) return
+    const teto = atual.total || progresso.processadas
+    const processadas = Math.max(0, Math.min(progresso.processadas, teto))
+    const novas = Math.max(0, processadas - atual.billed)
+
+    // O crédito sai pelo que andou desde a última conferência. `external_billed`
+    // é o que impede a próxima sincronização de cobrar tudo outra vez.
+    if (novas > 0) {
+      const custo = novas * Number(campanha.unitPrice)
+      if (custo > 0) {
+        await tx.insert(creditLedger).values({
+          orgId: campanha.orgId,
+          kind: 'consumo',
+          delta: String(-custo),
+          description: `Envio pelo Monitor de Envios (${novas} mensagem(ns))`,
+          campaignId: campanha.id,
+        })
+        await tx
+          .update(campaigns)
+          .set({ actualCost: raw`${campaigns.actualCost} + ${custo}::numeric` })
+          .where(eq(campaigns.id, campanha.id))
+        resumo.cobrado += custo
+      }
+    }
+
+    const terminou =
+      !aprovacao.emExecucao && (aprovacao.statusExecucao ?? '').toLowerCase().includes('finaliz')
+
+    await tx
+      .update(campaigns)
+      .set({
+        status: terminou ? 'concluida' : 'enviando',
+        externalStatus: 'aprovado',
+        externalSyncedAt: new Date(),
+        externalBilled: Math.max(atual.billed, processadas),
+        externalReason: null,
+        /*
+         * `sent` e `delivered` mapeiam UM PARA UM nos campos deles.
+         *
+         * A tela calcula `saidos = enviados + entregues`, ou seja, `sent` aqui
+         * significa "saiu e ainda não foi confirmado" — exatamente o que
+         * `quantidadeEnviada` quer dizer. Gravar o total processado em `sent`
+         * faria a soma contar os confirmados duas vezes e "Enviados" passar do
+         * total da campanha.
+         *
+         * A cobrança é que usa a soma, e é por isso que ela mora em
+         * `externalBilled` e não é derivada da tela.
+         */
+        sent: progresso.enviadas,
+        delivered: progresso.recebidas,
+        pending: Math.max(0, teto - processadas),
+        startedAt: raw`COALESCE(${campaigns.startedAt}, now())`,
+        finishedAt: terminou ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(campaigns.id, campanha.id))
+
+    if (terminou) resumo.concluidas += 1
+  })
 }
 
 /**
@@ -629,11 +644,17 @@ export async function conferirCredencialDoMonitor(
   const [saldo, upload, ipDeSaida] = await Promise.all([
     saldoNoMonitor(credencial).then(
       (v) => ({ ok: true as const, valor: v }),
-      (e: unknown) => ({ ok: false as const, erro: e instanceof Error ? e.message : 'não respondeu' }),
+      (e: unknown) => ({
+        ok: false as const,
+        erro: e instanceof Error ? e.message : 'não respondeu',
+      }),
     ),
     conferirTokenNoUpload(credencial).then(
       (v) => ({ ok: true as const, valor: v }),
-      (e: unknown) => ({ ok: false as const, erro: e instanceof Error ? e.message : 'não respondeu' }),
+      (e: unknown) => ({
+        ok: false as const,
+        erro: e instanceof Error ? e.message : 'não respondeu',
+      }),
     ),
     /*
      * De onde a chamada sai.
