@@ -495,6 +495,7 @@ cenario('Monitor de Envios', () => {
 
   it('barra campanha eleitoral sem a declaração política', async () => {
     const servico = await import('@/lib/campanhas/servico')
+    const chamadasAntes = estado.rotasChamadas.length
 
     /*
      * Neste canal o corpo vai cru, e a frase de descadastro é a DELES — que
@@ -514,6 +515,18 @@ cenario('Monitor de Envios', () => {
     expect(r.ok).toBe(false)
     if (r.ok) return
     expect(r.erro).toMatch(/candidato|partido/i)
+    const { sql } = await import('@/db')
+    const [recusada] = await sql`
+      SELECT status, external_provider, external_code, materialized FROM campaigns
+      WHERE org_id=${orgId} AND name='Eleitoral sem declarar'
+    `
+    expect(recusada).toMatchObject({
+      status: 'falhou',
+      external_provider: null,
+      external_code: null,
+      materialized: true,
+    })
+    expect(estado.rotasChamadas).toHaveLength(chamadasAntes)
   })
 
   it('campanha eleitoral declarada vai com politica=true e os dados', async () => {
