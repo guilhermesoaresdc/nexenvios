@@ -16,12 +16,11 @@ function Enviar() {
   )
 }
 
-export function Formulario({ area = 'cliente' }: { area?: 'cliente' | 'nex' }) {
+export function Formulario() {
   const [estado, acao] = useActionState(entrar, undefined)
 
   return (
     <form action={acao} className="mt-8 space-y-5">
-      <input type="hidden" name="area" value={area} />
       {estado?.erro ? (
         <div role="alert">
           <Aviso tom="erro">{estado.erro}</Aviso>

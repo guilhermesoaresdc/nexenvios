@@ -25,12 +25,6 @@ export default async function Entrar() {
           Primeiro acesso
         </Link>
       </p>
-      <p className="mt-3 text-center text-sm">
-        <Link href="/entrar/admin" className="text-muted hover:text-blue">
-          Acesso do time Nex →
-        </Link>
-      </p>
-
       <p className="mt-8 text-center text-[.86rem] text-muted">
         Ainda não é cliente?{' '}
         <Link href="/#contato" className="font-semibold text-blue hover:underline">
