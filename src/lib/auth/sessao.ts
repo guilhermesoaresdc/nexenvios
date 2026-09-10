@@ -2,6 +2,8 @@ import 'server-only'
 import { createHash, randomBytes } from 'node:crypto'
 import { eq, lt } from 'drizzle-orm'
 import { db, sql } from '@/db'
+import type { Db } from '@/db'
+import { comBancoDeSessao } from '@/db/sessao-conexao'
 import { organizations, sessions, users } from '@/db/schema'
 import type { Session, UserRole } from '@/db/schema'
 
@@ -85,6 +87,10 @@ export async function criarSessao(
  * banco a cada requisição sem deixar a sessão morrer no meio do expediente.
  */
 export async function validarSessao(token: string): Promise<UsuarioAutenticado | null> {
+  return comBancoDeSessao((banco) => validarSessaoNoBanco(token, banco))
+}
+
+async function validarSessaoNoBanco(token: string, db: Db): Promise<UsuarioAutenticado | null> {
   const id = hashToken(token)
 
   const [linha] = await db
