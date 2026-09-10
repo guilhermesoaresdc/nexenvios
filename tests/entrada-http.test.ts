@@ -8,7 +8,7 @@ vi.mock('@/lib/auth/cookies', () => ({ gravarCookieSessao: mocks.cookie }))
 import { POST } from '@/app/api/auth/entrar/route'
 
 function pedido(origem: string | null = 'https://nex.example', json = true) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' }
+  const headers: Record<string, string> = { Host: 'nex.example', 'Content-Type': 'application/x-www-form-urlencoded' }
   if (origem) headers.Origin = origem
   if (json) headers.Accept = 'application/json'
   return new Request('https://nex.example/api/auth/entrar', {
@@ -26,6 +26,15 @@ it('confirma o login sem renderizar o painel e não devolve o token no JSON', as
   expect(await resposta.json()).toEqual({ destino: '/admin' })
   expect(resposta.headers.get('cache-control')).toBe('no-store')
   expect(mocks.cookie).toHaveBeenCalledOnce()
+})
+it('confere o Host recebido mesmo quando Next normaliza o endereço interno', async () => {
+  const request = new Request('http://localhost:3219/api/auth/entrar', {
+    method: 'POST', headers: {
+      Host: '127.0.0.1:3219', Origin: 'http://127.0.0.1:3219',
+      Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded',
+    }, body: 'email=teste%40example.test&senha=Teste-ficticio',
+  })
+  expect((await POST(request)).status).toBe(200)
 })
 it.each([null, 'https://outro.example', 'null'])('recusa origem %s antes de autenticar', async (origem) => {
   expect((await POST(pedido(origem))).status).toBe(403)
