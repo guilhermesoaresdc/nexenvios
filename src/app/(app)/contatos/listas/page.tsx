@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { importacoesRecentes, listarListas } from '@/db/queries/contatos'
@@ -9,7 +10,7 @@ import { Lista, NovaLista } from './painel'
 export const metadata: Metadata = { title: 'Listas' }
 export const dynamic = 'force-dynamic'
 
-export default async function Listas() {
+async function Listas() {
   const usuario = await exigirUsuario()
   const [listas, importacoes] = await Promise.all([
     listarListas(usuario.orgId),
@@ -111,3 +112,5 @@ export default async function Listas() {
     </>
   )
 }
+
+export default paginaComBanco('/contatos/listas', Listas)

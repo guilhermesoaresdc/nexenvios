@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { canaisDaOrg } from '@/db/queries/canais'
 import { etiquetasEmUso, listarListas, resumoDaBase } from '@/db/queries/contatos'
@@ -15,7 +16,7 @@ export const metadata: Metadata = { title: 'Novo disparo' }
 // O rascunho é de quem está logado: nada aqui pode virar página estática.
 export const dynamic = 'force-dynamic'
 
-export default async function NovoDisparo() {
+async function NovoDisparo() {
   const usuario = await exigirUsuario()
 
   const [canais, listas, etiquetas, base, rascunho] = await Promise.all([
@@ -83,3 +84,5 @@ export default async function NovoDisparo() {
     </>
   )
 }
+
+export default paginaComBanco('/disparo', NovoDisparo)

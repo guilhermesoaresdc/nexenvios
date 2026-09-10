@@ -1,8 +1,9 @@
+import { paginaComBanco } from '@/db/escopo'
 import { sql } from '@/db'
 import { exigirTimeNex, exigirUsuario } from '@/lib/auth/atual'
 import { Numero } from '@/components/ui/base'
 import { numero } from '@/lib/ui'
-export async function ResumoDelegado({ global = false }: { global?: boolean }) {
+async function ConteudoDoResumo({ global = false }: { global?: boolean }) {
   const usuario = global ? await exigirTimeNex() : await exigirUsuario()
   const [r] = await sql<
     { campanhas: number; confirmadas: number; aguardando: number; falhas: number }[]
@@ -32,3 +33,5 @@ export async function ResumoDelegado({ global = false }: { global?: boolean }) {
     </section>
   )
 }
+
+export const ResumoDelegado = paginaComBanco('resumo-delegado', ConteudoDoResumo)

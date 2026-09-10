@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { Titulo } from '@/components/shell/casca'
@@ -13,7 +14,7 @@ export const metadata: Metadata = { title: 'Nome de perfil' }
  * meio dele. A campanha trava, e para voltar a rodar é preciso cadastrar outro
  * perfil e esperar nova aprovação — o envio fica parado esse tempo todo.
  */
-export default async function NomeDePerfil() {
+async function NomeDePerfil() {
   await exigirUsuario()
 
   return (
@@ -46,3 +47,5 @@ export default async function NomeDePerfil() {
     </>
   )
 }
+
+export default paginaComBanco('/canais/nome-de-perfil', NomeDePerfil)

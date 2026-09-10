@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { contarCampanhas, listarCampanhas } from '@/db/queries/campanhas'
@@ -79,7 +80,7 @@ function endereco(filtros: { busca: string; status: string; canal: string }, pag
   return consulta ? `/campanhas?${consulta}` : '/campanhas'
 }
 
-export default async function Campanhas({
+async function Campanhas({
   searchParams,
 }: {
   searchParams: Promise<Busca>
@@ -297,3 +298,5 @@ export default async function Campanhas({
     </>
   )
 }
+
+export default paginaComBanco('/campanhas', Campanhas)

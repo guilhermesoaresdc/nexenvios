@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import { ResumoDelegado } from '@/components/shell/resumo-delegado'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -25,7 +26,7 @@ const ACAO_LABEL: Record<string, string> = {
   'usuario.convidado': 'convidou um usuário',
 }
 
-export default async function VisaoGeral() {
+async function VisaoGeral() {
   const usuario = await exigirTimeNex()
 
   const [resumo, consumo, registros, batimento] = await Promise.all([
@@ -187,3 +188,5 @@ export default async function VisaoGeral() {
     </>
   )
 }
+
+export default paginaComBanco('/admin', VisaoGeral)

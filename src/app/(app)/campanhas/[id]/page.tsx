@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
@@ -61,7 +62,7 @@ function hora(valor: number): string {
   return `${String(valor).padStart(2, '0')}h`
 }
 
-export default async function Campanha({ params }: { params: Promise<{ id: string }> }) {
+async function Campanha({ params }: { params: Promise<{ id: string }> }) {
   const usuario = await exigirUsuario()
   const { id } = await params
 
@@ -478,3 +479,5 @@ function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
     </div>
   )
 }
+
+export default paginaComBanco('/campanhas/[id]', Campanha)

@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import { sql } from '@/db'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { Titulo } from '@/components/shell/casca'
@@ -5,7 +6,7 @@ import { Aviso, Numero, Pad, PadTitulo, Tabela, Td, Th, Vazio } from '@/componen
 import { moeda, dataHora } from '@/lib/ui'
 export const metadata = { title: 'Saldo e extrato' }
 export const dynamic = 'force-dynamic'
-export default async function Saldo() {
+async function Saldo() {
   const usuario = await exigirUsuario()
   const [[saldo], extrato] = await Promise.all([
     sql<{ saldo: string; limite: string; reservado: string }[]>`
@@ -90,3 +91,5 @@ export default async function Saldo() {
     </>
   )
 }
+
+export default paginaComBanco('/saldo', Saldo)

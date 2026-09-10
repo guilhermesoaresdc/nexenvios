@@ -53,7 +53,7 @@ export async function listarContatos(
   const { limite = 50, pular = 0 } = filtro
   return sql<LinhaDeContato[]>`
     SELECT c.id, c.phone AS telefone, c.name AS nome, c.email,
-           c.tags AS etiquetas, c.opted_out AS descadastrado,
+           to_json(c.tags) AS etiquetas, c.opted_out AS descadastrado,
            c.source AS origem, c.created_at AS "criadoEm",
            (SELECT max(d.sent_at) FROM dispatches d WHERE d.contact_id = c.id) AS "ultimoEnvio"
       FROM contacts c

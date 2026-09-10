@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { contarHistorico, listarHistorico } from '@/db/queries/historico'
@@ -28,7 +29,7 @@ const TOM: Record<DispatchStatus, 'verde' | 'azul' | 'neutro' | 'vermelho' | 'ci
 
 const POR_PAGINA = 50
 
-export default async function Historico({
+async function Historico({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -186,3 +187,5 @@ export default async function Historico({
     </>
   )
 }
+
+export default paginaComBanco('/historico', Historico)

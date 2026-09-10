@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirAdmin } from '@/lib/auth/atual'
 import { db } from '@/db'
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
 
 const BASE = ORIGEM
 
-export default async function Api() {
+async function Api() {
   const usuario = await exigirAdmin()
 
   const chaves = await db
@@ -158,3 +159,5 @@ export default async function Api() {
     </>
   )
 }
+
+export default paginaComBanco('/configuracoes/api', Api)

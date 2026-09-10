@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import Link from 'next/link'
 import { sql } from '@/db'
 import { exigirSuperadmin } from '@/lib/auth/atual'
@@ -8,7 +9,7 @@ import { quando } from '@/lib/ui'
 export const metadata = { title: 'Prontidão da operação' }
 export const dynamic = 'force-dynamic'
 
-export default async function Operacao() {
+async function Operacao() {
   await exigirSuperadmin()
   const [batimento, [base], pendencias] = await Promise.all([
     estadoDoBatimento(),
@@ -150,3 +151,5 @@ export default async function Operacao() {
     </>
   )
 }
+
+export default paginaComBanco('/admin/operacao', Operacao)

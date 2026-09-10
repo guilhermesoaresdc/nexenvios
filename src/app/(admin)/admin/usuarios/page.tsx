@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { exigirTimeNex } from '@/lib/auth/atual'
@@ -39,7 +40,7 @@ export const dynamic = 'force-dynamic'
 
 const POR_PAGINA = 40
 
-export default async function Usuarios({
+async function Usuarios({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -285,3 +286,5 @@ export default async function Usuarios({
     </>
   )
 }
+
+export default paginaComBanco('/admin/usuarios', Usuarios)

@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { exigirUsuario } from '@/lib/auth/atual'
@@ -32,7 +33,7 @@ export const dynamic = 'force-dynamic'
 
 const POR_PAGINA = 50
 
-export default async function Contatos({
+async function Contatos({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -237,3 +238,5 @@ export default async function Contatos({
     </>
   )
 }
+
+export default paginaComBanco('/contatos', Contatos)

@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirSuperadmin } from '@/lib/auth/atual'
 import { Titulo } from '@/components/shell/casca'
@@ -6,7 +7,7 @@ import { Formulario } from './formulario'
 
 export const metadata: Metadata = { title: 'Novo cliente' }
 
-export default async function NovoCliente() {
+async function NovoCliente() {
   await exigirSuperadmin()
 
   return (
@@ -24,3 +25,5 @@ export default async function NovoCliente() {
     </>
   )
 }
+
+export default paginaComBanco('/admin/clientes/novo', NovoCliente)

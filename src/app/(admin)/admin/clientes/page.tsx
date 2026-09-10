@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { exigirTimeNex } from '@/lib/auth/atual'
@@ -37,7 +38,7 @@ const STATUS_LABEL: Record<OrgStatus, string> = {
 
 const POR_PAGINA = 30
 
-export default async function Clientes({
+async function Clientes({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -207,3 +208,5 @@ export default async function Clientes({
     </>
   )
 }
+
+export default paginaComBanco('/admin/clientes', Clientes)

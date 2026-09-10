@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirEscrita, exigirUsuario } from '@/lib/auth/atual'
 import { listarListas } from '@/db/queries/contatos'
@@ -8,7 +9,7 @@ import { Painel } from './painel'
 export const metadata: Metadata = { title: 'Importar contatos' }
 export const dynamic = 'force-dynamic'
 
-export default async function Importar() {
+async function Importar() {
   const usuario = await exigirUsuario()
   exigirEscrita(usuario)
 
@@ -29,3 +30,5 @@ export default async function Importar() {
     </>
   )
 }
+
+export default paginaComBanco('/contatos/importar', Importar)

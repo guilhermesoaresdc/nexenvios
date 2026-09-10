@@ -1,3 +1,4 @@
+import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirTimeNex } from '@/lib/auth/atual'
 import { orgDaPlataforma, todosOsUsuarios } from '@/db/queries/admin'
@@ -10,7 +11,7 @@ import { AcoesDoUsuario, EstadoDoAcesso, NovoAcesso } from '../usuarios/painel'
 export const metadata: Metadata = { title: 'Time Nex' }
 export const dynamic = 'force-dynamic'
 
-export default async function Equipe() {
+async function Equipe() {
   const eu = await exigirTimeNex()
   const org = await orgDaPlataforma()
 
@@ -136,3 +137,5 @@ export default async function Equipe() {
     </>
   )
 }
+
+export default paginaComBanco('/admin/equipe', Equipe)
