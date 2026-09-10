@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { autenticarEntrada, ERROS_ENTRADA } from '@/lib/auth/entrada'
 import { gravarCookieSessao } from '@/lib/auth/cookies'
 import { criarLog } from '@/lib/log'
+import { mesmaOrigem } from '@/lib/auth/origem-http'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -12,15 +13,7 @@ const semCache = { 'Cache-Control': 'no-store' }
 export async function POST(request: Request) {
   // Uma rota HTTP não recebe a proteção de origem das Server Actions.
   // Confere antes de ler os campos ou executar qualquer consulta.
-  const origem = request.headers.get('origin')
-  let mesmaOrigem = false
-  try {
-    // Next pode normalizar request.url (127.0.0.1 vira localhost).
-    // Host é o destino HTTP recebido, como na checagem de Server Actions.
-    const urlOrigem = new URL(origem ?? '')
-    mesmaOrigem = urlOrigem.origin === origem && urlOrigem.host === request.headers.get('host')
-  } catch { /* Origem ausente ou inválida é recusada. */ }
-  if (!mesmaOrigem || request.headers.get('sec-fetch-site') === 'cross-site') {
+  if (!mesmaOrigem(request)) {
     return NextResponse.json({ erro: 'Origem da solicitação inválida.' }, { status: 403, headers: semCache })
   }
   const querJson = request.headers.get('accept')?.includes('application/json')

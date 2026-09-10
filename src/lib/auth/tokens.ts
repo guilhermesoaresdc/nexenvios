@@ -1,7 +1,8 @@
 import 'server-only'
 import { createHash, randomBytes } from 'node:crypto'
 import { and, eq, gt, isNull } from 'drizzle-orm'
-import { db } from '@/db'
+import type { Db } from '@/db'
+import { comBancoDeSessao } from '@/db/sessao-conexao'
 import { auditLog, organizations, passwordTokens, sessions, users } from '@/db/schema'
 import { VALIDADE_CONVITE_MS, VALIDADE_RECUPERACAO_MS } from './regras'
 
@@ -20,11 +21,12 @@ export function hashDoToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
-export async function emitirToken(userId: string, proposito: Proposito): Promise<string> {
+export async function emitirToken(userId: string, proposito: Proposito, banco?: Db): Promise<string> {
+  if (!banco) return comBancoDeSessao((db) => emitirToken(userId, proposito, db), 'emitir-link')
   const token = randomBytes(32).toString('base64url')
   const validade = proposito === 'convite' ? VALIDADE_CONVITE_MS : VALIDADE_RECUPERACAO_MS
 
-  await db.transaction(async (tx) => {
+  await banco.transaction(async (tx) => {
     await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update')
     await tx
       .update(passwordTokens)
@@ -45,8 +47,9 @@ export type TokenConferido =
   | { ok: true; userId: string; nome: string; email: string; proposito: Proposito }
   | { ok: false; motivo: MotivoInvalido }
 
-export async function conferirToken(token: string): Promise<TokenConferido> {
-  const [linha] = await db
+export async function conferirToken(token: string, banco?: Db): Promise<TokenConferido> {
+  if (!banco) return comBancoDeSessao((db) => conferirToken(token, db), 'conferir-link')
+  const [linha] = await banco
     .select({
       id: passwordTokens.id,
       userId: passwordTokens.userId,
@@ -78,8 +81,9 @@ export async function conferirToken(token: string): Promise<TokenConferido> {
   }
 }
 
-export async function queimarToken(token: string): Promise<void> {
-  await db
+export async function queimarToken(token: string, banco?: Db): Promise<void> {
+  if (!banco) return comBancoDeSessao((db) => queimarToken(token, db), 'definir-senha')
+  await banco
     .update(passwordTokens)
     .set({ usedAt: new Date() })
     .where(eq(passwordTokens.id, hashDoToken(token)))
@@ -92,10 +96,11 @@ export function linkDeSenha(token: string, base?: string): string {
 }
 
 /** Consome o link e altera senha/sessões na mesma transação. */
-export async function consumirTokenDeSenha(token: string, hash: string): Promise<TokenConferido> {
-  const previa = await conferirToken(token)
+export async function consumirTokenDeSenha(token: string, hash: string, banco?: Db): Promise<TokenConferido> {
+  if (!banco) return comBancoDeSessao((db) => consumirTokenDeSenha(token, hash, db), 'definir-senha')
+  const previa = await conferirToken(token, banco)
   if (!previa.ok) return previa
-  return db.transaction(async (tx) => {
+  return banco.transaction(async (tx) => {
     const [usuario] = await tx
       .select({ ativo: users.active, orgId: users.orgId })
       .from(users)
