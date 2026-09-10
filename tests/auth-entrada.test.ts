@@ -17,6 +17,9 @@ const mocks = vi.hoisted(() => {
   }
 })
 vi.mock('@/db', () => ({ db: mocks.db }))
+vi.mock('@/db/sessao-conexao', () => ({
+  comBancoDeSessao: async (executar: (db: typeof mocks.db) => Promise<unknown>) => executar(mocks.db),
+}))
 vi.mock('next/headers', () => ({
   headers: async () => new Headers({ 'x-forwarded-for': '203.0.113.10' }),
 }))
@@ -61,7 +64,7 @@ function formulario(email: string) {
 describe('entrada única', () => {
   beforeEach(() => {
     mocks.tentativas.clear()
-    mocks.criarSessao.mockClear().mockResolvedValue({ token: 'sessao-ficticia' })
+    mocks.criarSessao.mockClear().mockResolvedValue({ token: 'sessao-ficticia', sessao: { expiresAt: new Date(Date.now() + 10000) } })
     mocks.confere.mockReset().mockResolvedValue(true)
     mocks.consulta.limit.mockResolvedValue([
       {

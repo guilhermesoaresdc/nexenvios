@@ -5,9 +5,10 @@ import { sql } from '@/db'
 /** Limite compartilhado entre instâncias, sem guardar IP ou e-mail em claro. */
 export async function registrarTentativa(
   chave: string,
+  conexao: typeof sql = sql,
 ): Promise<{ bloqueado: boolean; restam: number }> {
   const id = createHash('sha256').update(chave).digest('hex')
-  const [linha] = await sql<{ attempts: number }[]>`
+  const [linha] = await conexao<{ attempts: number }[]>`
     INSERT INTO auth_attempts (key, attempts, expires_at)
     VALUES (${id}, 1, now() + interval '15 minutes')
     ON CONFLICT (key) DO UPDATE SET
@@ -19,7 +20,7 @@ export async function registrarTentativa(
   return { bloqueado: n > 10, restam: Math.max(0, 10 - n) }
 }
 
-export async function limparTentativas(chave: string): Promise<void> {
+export async function limparTentativas(chave: string, conexao: typeof sql = sql): Promise<void> {
   const id = createHash('sha256').update(chave).digest('hex')
-  await sql`DELETE FROM auth_attempts WHERE key = ${id}`
+  await conexao`DELETE FROM auth_attempts WHERE key = ${id}`
 }

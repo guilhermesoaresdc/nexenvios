@@ -2,14 +2,18 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { usuarioAtual } from '@/lib/auth/atual'
+import { ERROS_ENTRADA } from '@/lib/auth/entrada'
 import { Formulario } from './formulario'
 
 export const metadata: Metadata = { title: 'Entrar' }
 
-export default async function Entrar() {
+export default async function Entrar({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
   // Quem já está dentro não vê a porta.
   const usuario = await usuarioAtual()
   if (usuario) redirect(usuario.isTimeNex && !usuario.personificando ? '/admin' : '/painel')
+  const { erro } = await searchParams
+  const erroInicial = erro && Object.hasOwn(ERROS_ENTRADA, erro)
+    ? ERROS_ENTRADA[erro as keyof typeof ERROS_ENTRADA] : undefined
 
   return (
     <>
@@ -18,7 +22,7 @@ export default async function Entrar() {
         Acompanhe seus disparos, sua base e seu saldo.
       </p>
 
-      <Formulario />
+      <Formulario erroInicial={erroInicial} />
       <p className="mt-6 text-center text-sm text-muted">
         Recebeu um convite?{' '}
         <Link href="/primeiro-acesso" className="font-semibold text-blue">

@@ -10,7 +10,10 @@ const log = criarLog('sessao-db')
 export const PRAZO_SESSAO_MS = 12_000
 
 /** A sessão não compartilha a fila de consultas do painel ou do motor. */
-export async function comBancoDeSessao<T>(executar: (banco: Db) => Promise<T>): Promise<T> {
+export async function comBancoDeSessao<T>(
+  executar: (banco: Db, cliente: ReturnType<typeof postgres>) => Promise<T>,
+  operacao: 'validar' | 'entrar' = 'validar',
+): Promise<T> {
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL não configurada.')
   const cliente = postgres(url, {
@@ -23,10 +26,10 @@ export async function comBancoDeSessao<T>(executar: (banco: Db) => Promise<T>): 
   })
   const inicio = Date.now()
   let timer: ReturnType<typeof setTimeout> | undefined
-  log.info('validação iniciada')
+  log.info('operação iniciada', { operacao })
   try {
     const resultado = await Promise.race([
-      Promise.resolve().then(() => executar(drizzle(cliente, { schema }))),
+      Promise.resolve().then(() => executar(drizzle(cliente, { schema }), cliente)),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           const erro = new Error('Prazo da validação de sessão excedido.')
@@ -35,10 +38,11 @@ export async function comBancoDeSessao<T>(executar: (banco: Db) => Promise<T>): 
         }, PRAZO_SESSAO_MS)
       }),
     ])
-    log.info('validação concluída', { duracaoMs: Date.now() - inicio })
+    log.info('operação concluída', { operacao, duracaoMs: Date.now() - inicio })
     return resultado
   } catch (erro) {
-    log.error('validação falhou', {
+    log.error('operação falhou', {
+      operacao,
       duracaoMs: Date.now() - inicio,
       tipo: erro instanceof Error ? erro.name : 'desconhecido',
     })

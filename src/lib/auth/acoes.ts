@@ -5,86 +5,24 @@ import { redirect, unstable_rethrow } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/db'
-import { organizations, users } from '@/db/schema'
+import { users } from '@/db/schema'
 import { criarLog } from '@/lib/log'
 import { apagarCookieSessao, gravarCookieSessao, lerTokenSessao } from './cookies'
-import { limparTentativas, registrarTentativa } from './limite'
+import { registrarTentativa } from './limite'
 import { TAMANHO_MINIMO_SENHA } from './regras'
-import { conferirSenha, gerarHash } from './senha'
+import { gerarHash } from './senha'
 import { criarSessao, encerrarSessao, TTL_SESSAO_MS } from './sessao'
 import { consumirTokenDeSenha, emitirToken } from './tokens'
+import { autenticarEntrada } from './entrada'
 
 const log = criarLog('auth')
 
 export type EstadoDoFormulario = { erro?: string; ok?: string } | undefined
 
-const entrada = z.object({
-  email: z.string().trim().toLowerCase().email('Informe um e-mail válido.'),
-  senha: z.string().min(1, 'Informe a senha.').max(200, 'A senha deve ter até 200 caracteres.'),
-})
-
 async function origem(): Promise<{ ip: string; agente: string }> {
   const h = await headers()
   const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? h.get('x-real-ip') ?? 'desconhecido'
   return { ip, agente: h.get('user-agent') ?? '' }
-}
-
-async function entrarInterno(
-  _anterior: EstadoDoFormulario,
-  form: FormData,
-): Promise<EstadoDoFormulario> {
-  const dados = entrada.safeParse({ email: form.get('email'), senha: form.get('senha') })
-  if (!dados.success) {
-    return { erro: dados.error.issues[0]?.message ?? 'Confira os dados e tente de novo.' }
-  }
-
-  const { ip } = await origem()
-  const { bloqueado } = await registrarTentativa(`entrar:${ip}`)
-  const porConta = await registrarTentativa(`conta:${dados.data.email}`)
-  if (bloqueado || porConta.bloqueado) {
-    return { erro: 'Tentativas demais. Espere alguns minutos antes de tentar de novo.' }
-  }
-
-  const [conta] = await db
-    .select({
-      id: users.id,
-      hash: users.passwordHash,
-      ativo: users.active,
-      orgStatus: organizations.status,
-      papel: users.role,
-      plataforma: organizations.isPlatform,
-    })
-    .from(users)
-    .innerJoin(organizations, eq(organizations.id, users.orgId))
-    .where(eq(users.email, dados.data.email))
-    .limit(1)
-
-  /*
-   * Mesma mensagem para "não existe" e "senha errada", e a verificação roda
-   * mesmo sem conta: sem isso, o tempo de resposta diria a um atacante quais
-   * e-mails estão cadastrados.
-   */
-  const confere = await conferirSenha(dados.data.senha, conta?.hash ?? null)
-  if (!conta || !confere) {
-    log.warn('entrada recusada', { ip })
-    return { erro: 'E-mail ou senha não conferem.' }
-  }
-  if (!conta.ativo) return { erro: 'Esta conta está desativada. Fale com o administrador.' }
-  if (conta.orgStatus === 'cancelado') {
-    return { erro: 'Esta conta foi encerrada. Fale com o suporte da Nex Envios.' }
-  }
-
-  await limparTentativas(`conta:${dados.data.email}`)
-  await limparTentativas(`entrar:${ip}`)
-
-  const { ip: enderecoIp, agente } = await origem()
-  const { token } = await criarSessao(conta.id, { ip: enderecoIp, userAgent: agente })
-  await gravarCookieSessao(token, new Date(Date.now() + TTL_SESSAO_MS))
-  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, conta.id))
-
-  redirect(
-    conta.plataforma && ['superadmin', 'suporte'].includes(conta.papel) ? '/admin' : '/painel',
-  )
 }
 
 export async function sair(): Promise<void> {
@@ -178,7 +116,10 @@ export async function entrar(
   form: FormData,
 ): Promise<EstadoDoFormulario> {
   try {
-    return await entrarInterno(anterior, form)
+    const resultado = await autenticarEntrada(form, await origem())
+    if (!resultado.ok) return { erro: resultado.erro }
+    await gravarCookieSessao(resultado.token, resultado.expiraEm)
+    redirect(resultado.destino)
   } catch (erro) {
     unstable_rethrow(erro)
     log.error('falha temporária na autenticação', { operacao: 'entrar' })
