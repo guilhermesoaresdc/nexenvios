@@ -6,7 +6,7 @@ import { exigirTimeNex } from '@/lib/auth/atual'
 import { extratoDaOrg, tabelaDePrecos, usuariosDaOrg, verCliente } from '@/db/queries/admin'
 import { CANAL_LABEL, PAPEIS_DO_CLIENTE, PAPEL_LABEL, type UserRole } from '@/db/schema/enums'
 import { entrarNaConta } from '@/lib/auth/visita'
-import {
+import { ListaRolavel,
   Botao,
   BotaoLink,
   Chip,
@@ -92,7 +92,7 @@ async function Cliente({ params }: { params: Promise<{ id: string }> }) {
         />
       </div>
 
-      <div className="mt-6 grid grid-cols-[1.3fr_1fr] gap-6 max-lg:grid-cols-1">
+      <div className="mt-6 grid grid-cols-[1.3fr_1fr] items-start gap-6 max-lg:grid-cols-1">
         <div className="space-y-6">
           {podeTudo ? <Cadastro cliente={cliente} /> : <CadastroSoLeitura cliente={cliente} />}
 
@@ -107,7 +107,7 @@ async function Cliente({ params }: { params: Promise<{ id: string }> }) {
                 descricao="Nenhum crédito lançado nesta conta ainda."
               />
             ) : (
-              <Tabela>
+              <Tabela rotulo="Extrato do cliente" altura="compacta">
                 <thead>
                   <tr>
                     <Th>Quando</Th>
@@ -159,7 +159,7 @@ async function Cliente({ params }: { params: Promise<{ id: string }> }) {
               descricao="Quem entra nesta conta. Você define a senha aqui mesmo quando o e-mail não chega."
               acao={<Etiqueta>{numero(usuarios.length)} no total</Etiqueta>}
             />
-            <Tabela>
+            <Tabela rotulo="Acessos do cliente" altura="compacta">
               <thead>
                 <tr>
                   <Th>Pessoa</Th>
@@ -240,24 +240,26 @@ async function Cliente({ params }: { params: Promise<{ id: string }> }) {
                 ) : null
               }
             />
-            <ul className="divide-y divide-line">
-              {padrao.map((linha) => {
-                const excecao = doCliente.find((x) => x.canal === linha.canal)
-                return (
-                  <li key={linha.canal} className="flex items-center justify-between px-6 py-3">
-                    <span className="text-[.88rem] text-ink">{CANAL_LABEL[linha.canal]}</span>
-                    <span className="tabular text-[.88rem] font-semibold text-navy">
-                      {moeda(excecao?.preco ?? linha.preco)}
-                      {excecao ? (
-                        <Chip tom="ciano" className="ml-2">
-                          exceção
-                        </Chip>
-                      ) : null}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
+            <ListaRolavel rotulo="Preços por canal" altura="compacta">
+              <ul className="divide-y divide-line">
+                {padrao.map((linha) => {
+                  const excecao = doCliente.find((x) => x.canal === linha.canal)
+                  return (
+                    <li key={linha.canal} className="flex items-center justify-between px-6 py-3">
+                      <span className="text-[.88rem] text-ink">{CANAL_LABEL[linha.canal]}</span>
+                      <span className="tabular text-[.88rem] font-semibold text-navy">
+                        {moeda(excecao?.preco ?? linha.preco)}
+                        {excecao ? (
+                          <Chip tom="ciano" className="ml-2">
+                            exceção
+                          </Chip>
+                        ) : null}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </ListaRolavel>
           </Pad>
         </div>
       </div>

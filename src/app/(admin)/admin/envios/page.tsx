@@ -100,7 +100,7 @@ async function Envios({
             descricao="Ajuste o cliente ou o status para encontrar a mensagem."
           />
         ) : (
-          <Tabela>
+          <Tabela rotulo="Envios">
             <thead>
               <tr>
                 <Th>Quando</Th>

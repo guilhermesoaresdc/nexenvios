@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { exigirSuperadmin } from '@/lib/auth/atual'
 import { sql } from '@/db'
 import { CANAL_CODIGO, CANAL_LABEL, PROVEDOR_LABEL, type Channel } from '@/db/schema/enums'
-import { Aviso, Etiqueta, Pad, PadTitulo } from '@/components/ui/base'
+import { ListaRolavel, Aviso, Etiqueta, Pad, PadTitulo } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { Cartao, Novo } from './painel'
 import { entregaACampanhaInteira } from '@/db/schema/enums'
@@ -82,7 +82,7 @@ async function Provedores() {
         {linhas.length > 0 ? (
           <Pad>
             <PadTitulo titulo="Configurados" descricao="Uso nos últimos 30 dias." />
-            <div className="space-y-4 p-6">
+            <ListaRolavel rotulo="Provedores configurados" className="space-y-4 p-6">
               {linhas.map((p) => (
                 <Cartao
                   key={p.id}
@@ -108,7 +108,7 @@ async function Provedores() {
                   falhasSeguidas={p.falhasSeguidas}
                 />
               ))}
-            </div>
+            </ListaRolavel>
           </Pad>
         ) : null}
 

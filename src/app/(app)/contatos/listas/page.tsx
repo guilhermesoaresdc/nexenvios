@@ -2,7 +2,7 @@ import { paginaComBanco } from '@/db/escopo'
 import type { Metadata } from 'next'
 import { exigirUsuario } from '@/lib/auth/atual'
 import { importacoesRecentes, listarListas } from '@/db/queries/contatos'
-import { BotaoLink, Pad, PadTitulo, Tabela, Td, Th, Vazio } from '@/components/ui/base'
+import { ListaRolavel, BotaoLink, Pad, PadTitulo, Tabela, Td, Th, Vazio } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { data, numero } from '@/lib/ui'
 import { Lista, NovaLista } from './painel'
@@ -34,7 +34,7 @@ async function Listas() {
         }
       />
 
-      <div className="grid grid-cols-[1.4fr_1fr] gap-6 max-lg:grid-cols-1">
+      <div className="grid grid-cols-[1.4fr_1fr] items-start gap-6 max-lg:grid-cols-1">
         <div className="space-y-5">
           <Pad>
             <PadTitulo titulo="Suas listas" />
@@ -44,24 +44,26 @@ async function Listas() {
                 descricao="Crie uma lista para separar públicos — por produto, por origem, por onda de disparo."
               />
             ) : (
-              <ul className="divide-y divide-line">
-                {listas.map((l) => (
-                  <li key={l.id} className="px-6 py-4">
-                    <Lista
-                      lista={{
-                        id: l.id,
-                        nome: l.nome,
-                        descricao: l.descricao,
-                        total: l.total,
-                        criadaEm: data(l.criadaEm),
-                        autor: l.autor,
-                        deTeste: l.deTeste,
-                      }}
-                      podeEditar={!usuario.isLeitor}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <ListaRolavel rotulo="Suas listas">
+                <ul className="divide-y divide-line">
+                  {listas.map((l) => (
+                    <li key={l.id} className="px-6 py-4">
+                      <Lista
+                        lista={{
+                          id: l.id,
+                          nome: l.nome,
+                          descricao: l.descricao,
+                          total: l.total,
+                          criadaEm: data(l.criadaEm),
+                          autor: l.autor,
+                          deTeste: l.deTeste,
+                        }}
+                        podeEditar={!usuario.isLeitor}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </ListaRolavel>
             )}
           </Pad>
 
@@ -73,7 +75,7 @@ async function Listas() {
             {importacoes.length === 0 ? (
               <Vazio titulo="Nenhuma importação" descricao="O resultado de cada planilha aparece aqui." />
             ) : (
-              <Tabela>
+              <Tabela rotulo="Importações recentes" altura="compacta">
                 <thead>
                   <tr>
                     <Th>Quando</Th>

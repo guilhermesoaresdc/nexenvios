@@ -22,7 +22,7 @@ import { exigirUsuario } from '@/lib/auth/atual'
 import { moeda, numero, porcento, quando } from '@/lib/ui'
 import { Titulo } from '@/components/shell/casca'
 import { IcCanais, IcContatos, IcDisparo } from '@/components/shell/icones'
-import {
+import { ListaRolavel,
   Aviso,
   Barra,
   BotaoLink,
@@ -202,7 +202,7 @@ async function Painel() {
         </div>
       </Pad>
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+      <div className="mt-5 grid gap-5 lg:grid-cols-2 items-start">
         <Pad>
           <PadTitulo titulo="Uso por canal" descricao="Últimos 30 dias, com o custo de cada um." />
           <div className="px-6 py-5">
@@ -252,59 +252,61 @@ async function Painel() {
               }
             />
           ) : (
-            <ul>
-              {emCurso.map((c) => {
-                const entregues = c.entregues + c.lidos + c.respondidos
-                const base = Math.max(c.total, entregues + c.enviados + c.falhas + c.pendentes, 1)
+            <ListaRolavel rotulo="Campanhas em curso" altura="compacta">
+              <ul>
+                {emCurso.map((c) => {
+                  const entregues = c.entregues + c.lidos + c.respondidos
+                  const base = Math.max(c.total, entregues + c.enviados + c.falhas + c.pendentes, 1)
 
-                return (
-                  <li key={c.id} className="border-b border-line last:border-b-0">
-                    <Link
-                      href={`/campanhas/${c.id}`}
-                      className="block px-6 py-4 transition-colors hover:bg-paper-alt"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                        <span className="min-w-0 truncate text-[.95rem] font-semibold text-navy">
-                          {c.nome}
-                        </span>
-                        <Chip
-                          tom={TOM_DO_STATUS[c.status] ?? 'neutro'}
-                          pulsando={c.status === 'enviando'}
-                        >
-                          {STATUS_CAMPANHA_LABEL[c.status as CampaignStatus] ?? c.status}
-                        </Chip>
-                      </div>
+                  return (
+                    <li key={c.id} className="border-b border-line last:border-b-0">
+                      <Link
+                        href={`/campanhas/${c.id}`}
+                        className="block px-6 py-4 transition-colors hover:bg-paper-alt"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                          <span className="min-w-0 truncate text-[.95rem] font-semibold text-navy">
+                            {c.nome}
+                          </span>
+                          <Chip
+                            tom={TOM_DO_STATUS[c.status] ?? 'neutro'}
+                            pulsando={c.status === 'enviando'}
+                          >
+                            {STATUS_CAMPANHA_LABEL[c.status as CampaignStatus] ?? c.status}
+                          </Chip>
+                        </div>
 
-                      <p className="mt-1 text-[.78rem] text-muted">
-                        {CANAL_CURTO[c.canal]} ·{' '}
-                        {c.status === 'agendada' && c.agendadaPara
-                          ? `sai ${quando(c.agendadaPara)}`
-                          : c.total > 0
-                            ? `${numero(c.total)} destinatários`
-                            : 'preparando a base'}
-                      </p>
+                        <p className="mt-1 text-[.78rem] text-muted">
+                          {CANAL_CURTO[c.canal]} ·{' '}
+                          {c.status === 'agendada' && c.agendadaPara
+                            ? `sai ${quando(c.agendadaPara)}`
+                            : c.total > 0
+                              ? `${numero(c.total)} destinatários`
+                              : 'preparando a base'}
+                        </p>
 
-                      <Barra
-                        className="mt-3"
-                        total={base}
-                        fatias={[
-                          { valor: entregues, cor: COR.verde, rotulo: 'Entregues' },
-                          { valor: c.enviados, cor: COR.azul, rotulo: 'Enviados' },
-                          { valor: c.falhas, cor: COR.vermelho, rotulo: 'Falhas' },
-                        ]}
-                      />
+                        <Barra
+                          className="mt-3"
+                          total={base}
+                          fatias={[
+                            { valor: entregues, cor: COR.verde, rotulo: 'Entregues' },
+                            { valor: c.enviados, cor: COR.azul, rotulo: 'Enviados' },
+                            { valor: c.falhas, cor: COR.vermelho, rotulo: 'Falhas' },
+                          ]}
+                        />
 
-                      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
-                        <Fatia cor={COR.verde} rotulo="Entregues" valor={entregues} />
-                        <Fatia cor={COR.azul} rotulo="Enviados" valor={c.enviados} />
-                        <Fatia cor={COR.vermelho} rotulo="Falhas" valor={c.falhas} />
-                        <Fatia cor={COR.cinza} rotulo="Na fila" valor={c.pendentes} />
-                      </div>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
+                        <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
+                          <Fatia cor={COR.verde} rotulo="Entregues" valor={entregues} />
+                          <Fatia cor={COR.azul} rotulo="Enviados" valor={c.enviados} />
+                          <Fatia cor={COR.vermelho} rotulo="Falhas" valor={c.falhas} />
+                          <Fatia cor={COR.cinza} rotulo="Na fila" valor={c.pendentes} />
+                        </div>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </ListaRolavel>
           )}
         </Pad>
       </div>

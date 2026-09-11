@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { exigirTimeNex } from '@/lib/auth/atual'
 import { auditoria, consumoPorCliente, estadoDoBatimento, resumoGeral } from '@/db/queries/admin'
 import { CANAL_CURTO } from '@/db/schema/enums'
-import { Chip, Etiqueta, Numero, Pad, PadTitulo, Tabela, Td, Th, Vazio } from '@/components/ui/base'
+import { ListaRolavel, Chip, Etiqueta, Numero, Pad, PadTitulo, Tabela, Td, Th, Vazio } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { moeda, numero, quando } from '@/lib/ui'
 import { Batimento } from './batimento'
@@ -102,7 +102,7 @@ async function VisaoGeral() {
         <Batimento estado={batimento} />
       </div>
 
-      <div className="mt-6 grid grid-cols-[1.3fr_1fr] gap-6 max-lg:grid-cols-1">
+      <div className="mt-6 grid grid-cols-[1.3fr_1fr] items-start gap-6 max-lg:grid-cols-1">
         <Pad>
           <PadTitulo
             titulo="Quem mais consumiu"
@@ -122,7 +122,7 @@ async function VisaoGeral() {
               descricao="Assim que um cliente disparar, o consumo aparece aqui separado por canal."
             />
           ) : (
-            <Tabela>
+            <Tabela rotulo="Quem mais consumiu" altura="compacta">
               <thead>
                 <tr>
                   <Th>Cliente</Th>
@@ -165,23 +165,25 @@ async function VisaoGeral() {
           {registros.length === 0 ? (
             <Vazio titulo="Nada registrado ainda" descricao="As ações do time aparecem aqui." />
           ) : (
-            <ul className="divide-y divide-line">
-              {registros.map((r) => (
-                <li key={r.id} className="px-6 py-3.5">
-                  <p className="text-[.88rem] text-ink">
-                    <b className="font-semibold text-navy">{r.autor ?? 'sistema'}</b>{' '}
-                    {ACAO_LABEL[r.acao] ?? r.acao}
-                    {r.cliente ? (
-                      <>
-                        {' — '}
-                        <span className="text-muted">{r.cliente}</span>
-                      </>
-                    ) : null}
-                  </p>
-                  <Etiqueta className="mt-0.5 block">{quando(r.criadoEm)}</Etiqueta>
-                </li>
-              ))}
-            </ul>
+            <ListaRolavel rotulo="O que aconteceu" altura="compacta">
+              <ul className="divide-y divide-line">
+                {registros.map((r) => (
+                  <li key={r.id} className="px-6 py-3.5">
+                    <p className="text-[.88rem] text-ink">
+                      <b className="font-semibold text-navy">{r.autor ?? 'sistema'}</b>{' '}
+                      {ACAO_LABEL[r.acao] ?? r.acao}
+                      {r.cliente ? (
+                        <>
+                          {' — '}
+                          <span className="text-muted">{r.cliente}</span>
+                        </>
+                      ) : null}
+                    </p>
+                    <Etiqueta className="mt-0.5 block">{quando(r.criadoEm)}</Etiqueta>
+                  </li>
+                ))}
+              </ul>
+            </ListaRolavel>
           )}
         </Pad>
       </div>

@@ -226,7 +226,7 @@ export function Navegacao({
 
       <aside
         className={cn(
-          'flex shrink-0 flex-col bg-navy-deep py-6 transition-[width,padding] duration-200',
+          'lg:sticky lg:top-0 lg:h-svh lg:overflow-y-auto flex shrink-0 flex-col bg-navy-deep py-6 transition-[width,padding] duration-200',
           estreito ? 'w-[74px] px-2.5' : 'w-[248px] px-4',
           'max-lg:fixed max-lg:inset-x-0 max-lg:top-[57px] max-lg:bottom-0 max-lg:z-[55] max-lg:w-full max-lg:overflow-y-auto max-lg:px-4 max-lg:transition-transform',
           aberto ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full',

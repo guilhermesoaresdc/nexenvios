@@ -1,3 +1,4 @@
+import { ListaRolavel } from '@/components/ui/base'
 import type { ReactNode } from 'react'
 import { cn, numero } from '@/lib/ui'
 
@@ -241,42 +242,44 @@ export function BarrasHorizontais({
   const teto = Math.max(1, ...itens.map((i) => i.valor))
 
   return (
-    <ul className={cn('space-y-4', className)}>
-      {itens.map((item) => {
-        const cor = item.cor ?? COR.azul
-        // Uma fatia mínima visível: zero some, mas 3 envios em um milhão não.
-        const largura = item.valor > 0 ? Math.max((item.valor / teto) * 100, 2) : 0
+    <ListaRolavel rotulo="Uso por canal" altura="compacta">
+      <ul className={cn('space-y-4', className)}>
+        {itens.map((item) => {
+          const cor = item.cor ?? COR.azul
+          // Uma fatia mínima visível: zero some, mas 3 envios em um milhão não.
+          const largura = item.valor > 0 ? Math.max((item.valor / teto) * 100, 2) : 0
 
-        return (
-          <li key={item.chave}>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: cor }} />
-                <span className="truncate text-[.88rem] font-semibold text-navy">
-                  {item.rotulo}
-                </span>
-                {item.codigo ? (
-                  <span className="shrink-0 font-mono text-[.66rem] tracking-[.1em] text-muted uppercase">
-                    {item.codigo}
+          return (
+            <li key={item.chave}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: cor }} />
+                  <span className="truncate text-[.88rem] font-semibold text-navy">
+                    {item.rotulo}
                   </span>
-                ) : null}
-              </span>
-              <span className="tabular shrink-0 font-mono text-[.86rem] font-semibold text-navy">
-                {numero(item.valor)}
-              </span>
-            </div>
+                  {item.codigo ? (
+                    <span className="shrink-0 font-mono text-[.66rem] tracking-[.1em] text-muted uppercase">
+                      {item.codigo}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="tabular shrink-0 font-mono text-[.86rem] font-semibold text-navy">
+                  {numero(item.valor)}
+                </span>
+              </div>
 
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-paper-alt">
-              <div
-                className="h-full rounded-full"
-                style={{ width: `${largura}%`, background: cor }}
-              />
-            </div>
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-paper-alt">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${largura}%`, background: cor }}
+                />
+              </div>
 
-            {item.nota ? <p className="mt-1.5 text-[.76rem] text-muted">{item.nota}</p> : null}
-          </li>
-        )
-      })}
-    </ul>
+              {item.nota ? <p className="mt-1.5 text-[.76rem] text-muted">{item.nota}</p> : null}
+            </li>
+          )
+        })}
+      </ul>
+    </ListaRolavel>
   )
 }

@@ -5,7 +5,7 @@ import { useFormStatus } from 'react-dom'
 import type { PrecoDoCanal } from '@/db/queries/admin'
 import { CANAL_LABEL, CANAIS, type Channel } from '@/db/schema/enums'
 import { removerExcecao, salvarExcecao, salvarPrecoPadrao } from './acoes'
-import {
+import { ListaRolavel,
   Aviso,
   Botao,
   Campo,
@@ -94,27 +94,29 @@ export function Excecoes({
           descricao="Todos os clientes pagam a tabela padrão. Crie uma exceção abaixo quando fechar um preço diferente."
         />
       ) : (
-        <ul className="divide-y divide-line">
-          {excecoes.map((e) => (
-            <li key={e.id ?? `${e.orgId}-${e.canal}`} className="flex items-center justify-between gap-3 px-6 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-[.9rem] font-semibold text-navy">{e.cliente}</p>
-                <p className="text-[.78rem] text-muted">
-                  {CANAL_LABEL[e.canal]} · <b className="text-navy">{moeda(e.preco)}</b>
-                </p>
-              </div>
-              <Botao
-                type="button"
-                tom="fantasma"
-                tamanho="sm"
-                disabled={removendo || !e.id}
-                onClick={() => e.id && iniciarRemocao(() => void removerExcecao(e.id!))}
-              >
-                Remover
-              </Botao>
-            </li>
-          ))}
-        </ul>
+        <ListaRolavel rotulo="Exceções por cliente">
+          <ul className="divide-y divide-line">
+            {excecoes.map((e) => (
+              <li key={e.id ?? `${e.orgId}-${e.canal}`} className="flex items-center justify-between gap-3 px-6 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[.9rem] font-semibold text-navy">{e.cliente}</p>
+                  <p className="text-[.78rem] text-muted">
+                    {CANAL_LABEL[e.canal]} · <b className="text-navy">{moeda(e.preco)}</b>
+                  </p>
+                </div>
+                <Botao
+                  type="button"
+                  tom="fantasma"
+                  tamanho="sm"
+                  disabled={removendo || !e.id}
+                  onClick={() => e.id && iniciarRemocao(() => void removerExcecao(e.id!))}
+                >
+                  Remover
+                </Botao>
+              </li>
+            ))}
+          </ul>
+        </ListaRolavel>
       )}
 
       <form action={acao} className="space-y-4 border-t border-line p-6">

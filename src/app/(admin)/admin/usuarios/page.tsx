@@ -170,7 +170,7 @@ async function Usuarios({
                   </span>
                 </div>
 
-                <Tabela>
+                <Tabela rotulo="Usuários">
                   <thead>
                     <tr>
                       <Th>Pessoa</Th>

@@ -185,7 +185,7 @@ async function Campanhas({
             />
           )
         ) : (
-          <Tabela>
+          <Tabela rotulo="Campanhas">
             <thead>
               <tr>
                 <Th>Campanha</Th>

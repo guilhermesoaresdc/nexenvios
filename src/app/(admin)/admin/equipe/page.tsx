@@ -53,7 +53,7 @@ async function Equipe() {
       <div className="grid grid-cols-[1.5fr_1fr] gap-6 max-xl:grid-cols-1">
         <Pad>
           <PadTitulo titulo="Pessoas" descricao={`${time.length} no time.`} />
-          <Tabela>
+          <Tabela rotulo="Time Nex">
             <thead>
               <tr>
                 <Th>Pessoa</Th>

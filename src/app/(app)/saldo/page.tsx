@@ -64,7 +64,7 @@ async function Saldo() {
             descricao="Os movimentos de saldo aparecerão aqui."
           />
         ) : (
-          <Tabela>
+          <Tabela rotulo="Saldo e extrato">
             <thead>
               <tr>
                 <Th>Data</Th>

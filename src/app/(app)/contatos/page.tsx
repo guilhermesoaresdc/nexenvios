@@ -160,7 +160,7 @@ async function Contatos({
                 Página {pagina} de {numero(paginas)}
               </span>
             </div>
-            <Tabela>
+            <Tabela rotulo="Contatos">
               <thead>
                 <tr>
                   <Th>Nome</Th>

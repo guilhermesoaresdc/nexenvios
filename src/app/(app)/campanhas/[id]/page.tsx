@@ -16,7 +16,7 @@ import { ERRO_LABEL } from '@/lib/channels/tipos'
 import { dataHora, moeda, numero, porcento, quando } from '@/lib/ui'
 import { Titulo } from '@/components/shell/casca'
 import { IcVoltar } from '@/components/shell/icones'
-import {
+import { ListaRolavel,
   Aviso,
   Barra,
   BotaoLink,
@@ -121,7 +121,7 @@ async function Campanha({ params }: { params: Promise<{ id: string }> }) {
         acao={<Controles campanhaId={campanha.id} status={campanha.status} delegada={delegada} />}
       />
 
-      <div className="mb-6 flex flex-wrap items-center gap-2">
+      <ListaRolavel rotulo="Público da campanha" altura="compacta" className="mb-6 flex flex-wrap items-center gap-2">
         <Chip tom={TOM_DO_STATUS[campanha.status]} pulsando={campanha.status === 'enviando'}>
           {STATUS_CAMPANHA_LABEL[campanha.status]}
         </Chip>
@@ -138,7 +138,7 @@ async function Campanha({ params }: { params: Promise<{ id: string }> }) {
         ) : (
           <Chip tom="neutro">sem fonte registrada</Chip>
         )}
-      </div>
+      </ListaRolavel>
 
       {preparando ? (
         <>
@@ -433,7 +433,7 @@ async function Campanha({ params }: { params: Promise<{ id: string }> }) {
               </BotaoLink>
             }
           />
-          <Tabela>
+          <Tabela rotulo="Motivos de falha">
             <thead>
               <tr>
                 <Th>Motivo</Th>
