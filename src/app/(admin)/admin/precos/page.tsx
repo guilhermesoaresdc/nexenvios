@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { exigirSuperadmin } from '@/lib/auth/atual'
 import { listarClientes, tabelaDePrecos } from '@/db/queries/admin'
 import { CANAL_CODIGO, CANAL_LABEL, type Channel } from '@/db/schema/enums'
-import { Aviso, Pad, PadTitulo } from '@/components/ui/base'
+import { ListaRolavel, Aviso, Pad, PadTitulo } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { Excecoes, PrecoPadrao } from './formularios'
 
@@ -39,25 +39,27 @@ async function Precos() {
         O orçamento na tela do cliente já mostra isso antes de ele confirmar.
       </Aviso>
 
-      <div className="grid grid-cols-[1fr_1fr] gap-6 max-lg:grid-cols-1">
+      <div className="grid items-start grid-cols-[1fr_1fr] gap-6 max-lg:grid-cols-1">
         <Pad>
           <PadTitulo
             titulo="Tabela padrão"
             descricao="Vale para todo cliente que não tiver exceção."
           />
-          <ul className="divide-y divide-line">
-            {padrao.map((p) => (
-              <li key={p.canal} className="px-6 py-4">
-                <PrecoPadrao
-                  canal={p.canal}
-                  rotulo={CANAL_LABEL[p.canal]}
-                  codigo={CANAL_CODIGO[p.canal]}
-                  unidade={UNIDADE[p.canal]}
-                  preco={p.preco}
-                />
-              </li>
-            ))}
-          </ul>
+          <ListaRolavel rotulo="Preços padrão" altura="compacta">
+            <ul className="divide-y divide-line">
+              {padrao.map((p) => (
+                <li key={p.canal} className="px-6 py-4">
+                  <PrecoPadrao
+                    canal={p.canal}
+                    rotulo={CANAL_LABEL[p.canal]}
+                    codigo={CANAL_CODIGO[p.canal]}
+                    unidade={UNIDADE[p.canal]}
+                    preco={p.preco}
+                  />
+                </li>
+              ))}
+            </ul>
+          </ListaRolavel>
         </Pad>
 
         <Excecoes excecoes={excecoes} clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))} />

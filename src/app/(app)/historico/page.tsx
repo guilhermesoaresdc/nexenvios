@@ -105,7 +105,7 @@ async function Historico({
               </span>
             </div>
 
-            <Tabela>
+            <Tabela rotulo="Histórico de envios">
               <thead>
                 <tr>
                   <Th>Quando</Th>

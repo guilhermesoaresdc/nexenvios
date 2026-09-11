@@ -44,7 +44,7 @@ async function Respostas() {
             }
           />
         ) : (
-          <Tabela>
+          <Tabela rotulo="Respostas recebidas">
             <thead>
               <tr>
                 <Th>Quando</Th>

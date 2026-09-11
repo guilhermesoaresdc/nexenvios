@@ -4,7 +4,7 @@ import { exigirAdmin } from '@/lib/auth/atual'
 import { canaisDaOrg, numerosDaOrg } from '@/db/queries/canais'
 import { tokenDeRetorno } from '@/lib/canais/retorno'
 import { CANAIS, CANAL_CODIGO, CANAL_LABEL, PROVEDOR_LABEL, type Channel } from '@/db/schema/enums'
-import { Aviso, BotaoLink, Chip, Etiqueta, Pad, PadTitulo } from '@/components/ui/base'
+import { ListaRolavel, Aviso, BotaoLink, Chip, Etiqueta, Pad, PadTitulo } from '@/components/ui/base'
 import { Titulo } from '@/components/shell/casca'
 import { CartaoDoCanal, Numeros } from './painel'
 
@@ -72,7 +72,7 @@ async function Canais() {
                 }
               />
 
-              <div className="space-y-4 p-6">
+              <ListaRolavel rotulo="Configurações do canal" className="space-y-4 p-6">
                 {doCanal.map((c) => (
                   <CartaoDoCanal
                     key={c.id}
@@ -93,7 +93,8 @@ async function Canais() {
                     numeros={c.numeros}
                   />
                 ))}
-
+              </ListaRolavel>
+              <div className="px-6 pb-6">
                 <CartaoDoCanal novo canalFixo={canal} />
               </div>
 

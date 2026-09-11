@@ -19,7 +19,7 @@ export function Pad({
   return (
     <div
       className={cn(
-        'rounded-[18px] border border-line bg-white shadow-[0_10px_24px_-12px_rgba(0,32,88,.14)]',
+        'min-w-0 rounded-[18px] border border-line bg-white shadow-[0_10px_24px_-12px_rgba(0,32,88,.14)]',
         className,
       )}
       {...props}
@@ -280,15 +280,50 @@ export function Vazio({
   )
 }
 
+// ─────────────────────────────────────────────────────── Listas
+
+type AlturaDaLista = 'compacta' | 'padrao'
+
+/** Limita a área visível, sem cortar registros nem depender de JavaScript. */
+export function ListaRolavel({
+  rotulo,
+  altura = 'padrao',
+  className,
+  children,
+  ...props
+}: ComponentProps<'div'> & { rotulo: string; altura?: AlturaDaLista }) {
+  return (
+    <div
+      role="region"
+      aria-label={rotulo}
+      tabIndex={0}
+      className={cn(
+        'min-h-0 min-w-0 overflow-auto [scrollbar-gutter:stable] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue',
+        altura === 'compacta' ? 'max-h-[min(21rem,60svh)]' : 'max-h-[min(30rem,65svh)]',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────── Tabelas
 
-export function Tabela({ className, children, ...props }: ComponentProps<'table'>) {
+export function Tabela({
+  className,
+  children,
+  altura,
+  rotulo = 'Registros da tabela',
+  ...props
+}: ComponentProps<'table'> & { rotulo?: string; altura?: AlturaDaLista }) {
   return (
-    <div className="overflow-x-auto">
-      <table className={cn('w-full border-collapse text-left text-sm', className)} {...props}>
+    <ListaRolavel rotulo={rotulo} altura={altura}>
+      <table className={cn('w-full border-separate border-spacing-0 text-left text-sm [&>thead]:sticky [&>thead]:top-0 [&>thead]:z-10', className)} {...props}>
         {children}
       </table>
-    </div>
+    </ListaRolavel>
   )
 }
 

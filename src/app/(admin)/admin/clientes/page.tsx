@@ -122,7 +122,7 @@ async function Clientes({
             acao={eu.isSuperadmin ? <BotaoLink href="/admin/clientes/novo">Novo cliente</BotaoLink> : null}
           />
         ) : (
-          <Tabela>
+          <Tabela rotulo="Clientes">
             <thead>
               <tr>
                 <Th>Cliente</Th>

@@ -111,7 +111,7 @@ async function Configuracoes() {
         </Aviso>
       ) : null}
 
-      <div className="mt-6 grid grid-cols-[1.2fr_1fr] gap-6 max-lg:grid-cols-1">
+      <div className="mt-6 grid grid-cols-[1.2fr_1fr] items-start gap-6 max-lg:grid-cols-1">
         {usuario.isAdmin ? (
           <FormularioDaConta conta={org} />
         ) : (
@@ -145,7 +145,7 @@ async function Configuracoes() {
           {extrato.length === 0 ? (
             <Vazio titulo="Sem movimentação" descricao="Assim que houver recarga ou envio, aparece aqui." />
           ) : (
-            <Tabela>
+            <Tabela rotulo="Extrato da conta" altura="compacta">
               <thead>
                 <tr>
                   <Th>Quando</Th>

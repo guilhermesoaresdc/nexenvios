@@ -118,7 +118,7 @@ async function Operacao() {
             descricao="Novos alertas aparecerão aqui."
           />
         ) : (
-          <Tabela>
+          <Tabela rotulo="Campanhas com pendências">
             <thead>
               <tr>
                 <Th>Cliente / campanha</Th>

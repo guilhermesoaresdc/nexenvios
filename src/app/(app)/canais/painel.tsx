@@ -267,7 +267,7 @@ export function Numeros({
         />
       ) : (
         <Pad>
-          <Tabela>
+          <Tabela rotulo="Números conectados">
             <thead>
               <tr>
                 <Th>Chip</Th>

@@ -33,7 +33,7 @@ async function Equipe() {
           titulo="Usuários"
           descricao="Operador cria e acompanha disparos. Visualizador só lê. Administrador mexe em canais, equipe e chaves."
         />
-        <Tabela>
+        <Tabela rotulo="Equipe da conta">
           <thead>
             <tr>
               <Th>Pessoa</Th>

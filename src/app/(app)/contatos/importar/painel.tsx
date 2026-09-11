@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { importarLote } from '../acoes'
 import { ler, MOTIVO } from '@/lib/contatos/leitura'
-import {
+import { ListaRolavel,
   AreaTexto,
   Aviso,
   Botao,
@@ -234,7 +234,7 @@ export function Painel({ listas }: { listas: { id: string; nome: string; total: 
                   <Etiqueta className="mb-2 block">
                     O que não entrou — e por quê (primeiras 20)
                   </Etiqueta>
-                  <Tabela>
+                  <Tabela rotulo="Linhas recusadas">
                     <thead>
                       <tr>
                         <Th className="w-16">Linha</Th>
@@ -267,14 +267,16 @@ export function Painel({ listas }: { listas: { id: string; nome: string; total: 
               {lido.validas.length > 0 ? (
                 <div>
                   <Etiqueta className="mb-2 block">Amostra do que vai entrar</Etiqueta>
-                  <ul className="space-y-1">
-                    {lido.validas.slice(0, 5).map((v) => (
-                      <li key={v.telefone} className="tabular font-mono text-[.82rem] text-muted">
-                        {v.telefone}
-                        {v.nome ? ` — ${v.nome}` : ''}
-                      </li>
-                    ))}
-                  </ul>
+                  <ListaRolavel rotulo="Amostra de contatos válidos" altura="compacta">
+                    <ul className="space-y-1">
+                      {lido.validas.slice(0, 5).map((v) => (
+                        <li key={v.telefone} className="tabular font-mono text-[.82rem] text-muted">
+                          {v.telefone}
+                          {v.nome ? ` — ${v.nome}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </ListaRolavel>
                 </div>
               ) : null}
             </div>

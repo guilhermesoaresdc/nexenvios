@@ -25,6 +25,7 @@ import { contarVariantes, medirSms, VARIAVEIS_PADRAO } from '@/lib/mensagem'
 import { cn, duracao, moeda, numero } from '@/lib/ui'
 import { IcContatos } from '@/components/shell/icones'
 import {
+  ListaRolavel,
   AreaTexto,
   Aviso,
   Botao,
@@ -726,7 +727,7 @@ export function Assistente({
                 </Aviso>
               ) : null}
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <ListaRolavel rotulo="Escolher canal" className="grid gap-3 sm:grid-cols-2">
                 {canais.map((c) => (
                   <CartaoDeCanal
                     key={c.id}
@@ -735,7 +736,7 @@ export function Assistente({
                     escolher={() => escolherCanal(c)}
                   />
                 ))}
-              </div>
+              </ListaRolavel>
             </div>
           </Pad>
         ) : null}
@@ -785,7 +786,7 @@ export function Assistente({
                         </Link>
                       </p>
                     ) : (
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <ListaRolavel rotulo="Escolher listas" altura="compacta" className="mt-2 grid gap-2 sm:grid-cols-2">
                         {listas.map((l) => (
                           <CaixaDeFonte
                             key={l.id}
@@ -809,7 +810,7 @@ export function Assistente({
                             }
                           />
                         ))}
-                      </div>
+                      </ListaRolavel>
                     )}
                   </div>
 
@@ -823,7 +824,7 @@ export function Assistente({
                         </Link>
                       </p>
                     ) : (
-                      <div className="mt-2 flex flex-wrap gap-2">
+                      <ListaRolavel rotulo="Escolher etiquetas" altura="compacta" className="mt-2 flex flex-wrap gap-2">
                         {etiquetas.map((e) => {
                           const marcada = !todaABase && etiquetasEscolhidas.includes(e.etiqueta)
                           return (
@@ -848,7 +849,7 @@ export function Assistente({
                             </button>
                           )
                         })}
-                      </div>
+                      </ListaRolavel>
                     )}
                   </div>
 
@@ -1347,7 +1348,10 @@ export function Assistente({
                         : '—'
                     }
                   />
-                  <LinhaResumo rotulo="Público" valor={fontes.map((f) => f.rotulo).join(', ') || '—'} />
+                  <LinhaResumo
+                    rotulo="Público"
+                    valor={<ListaRolavel rotulo="Fontes selecionadas" altura="compacta">{fontes.map((f) => f.rotulo).join(', ') || '—'}</ListaRolavel>}
+                  />
                   <LinhaResumo rotulo="Destinatários" valor={numero(destinatarios)} />
                   <LinhaResumo
                     rotulo={

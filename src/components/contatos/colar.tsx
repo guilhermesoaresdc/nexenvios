@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { importarLote } from '@/app/(app)/contatos/acoes'
 import { ler, MOTIVO } from '@/lib/contatos/leitura'
-import { AreaTexto, Aviso, Botao, Chip } from '@/components/ui/base'
+import { ListaRolavel, AreaTexto, Aviso, Botao, Chip } from '@/components/ui/base'
 import { numero } from '@/lib/ui'
 
 /**
@@ -106,15 +106,17 @@ export function ColarNumeros({
       ) : null}
 
       {lido && lido.recusadas.length > 0 ? (
-        <ul className="space-y-1 text-[.78rem] text-muted">
-          {lido.recusadas.slice(0, 5).map((r) => (
-            <li key={`${r.linha}-${r.original}`}>
-              linha {r.linha}: <span className="font-mono">{r.original}</span> —{' '}
-              {MOTIVO[r.motivo] ?? r.motivo}
-            </li>
-          ))}
-          {lido.recusadas.length > 5 ? <li>e mais {lido.recusadas.length - 5}…</li> : null}
-        </ul>
+        <ListaRolavel rotulo="Erros dos números colados" altura="compacta">
+          <ul className="space-y-1 text-[.78rem] text-muted">
+            {lido.recusadas.slice(0, 5).map((r) => (
+              <li key={`${r.linha}-${r.original}`}>
+                linha {r.linha}: <span className="font-mono">{r.original}</span> —{' '}
+                {MOTIVO[r.motivo] ?? r.motivo}
+              </li>
+            ))}
+            {lido.recusadas.length > 5 ? <li>e mais {lido.recusadas.length - 5}…</li> : null}
+          </ul>
+        </ListaRolavel>
       ) : null}
 
       {erro ? <Aviso tom="erro">{erro}</Aviso> : null}

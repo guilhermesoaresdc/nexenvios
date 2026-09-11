@@ -55,7 +55,7 @@ async function Api() {
                 descricao="Crie uma chave ao lado para integrar seu sistema à Nex Envios."
               />
             ) : (
-              <Tabela>
+              <Tabela rotulo="Chaves de API">
                 <thead>
                   <tr>
                     <Th>Nome</Th>
