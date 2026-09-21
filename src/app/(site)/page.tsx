@@ -8,6 +8,7 @@ import {
   Contador,
 } from '@/components/site/interativos'
 import { Formulario } from '@/components/site/formulario'
+import { Marketing } from '@/components/site/marketing'
 import {
   IconeAbertura,
   IconeAlcance,
@@ -178,6 +179,7 @@ export default function Landing() {
   return (
     <>
       <Cabecalho acao={ANCORA_FORMULARIO} />
+      <Marketing />
 
       <main id="topo">
         {/* ───────────────────────────────────────────────── herói */}

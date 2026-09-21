@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { mensagemDoFormulario, urlFormulario } from '@/lib/marketing/config'
+import { rastrear } from '@/lib/marketing/cliente'
 
 /**
  * O formulário de proposta, servido pelo CRM Hédiz (módulo Fluxos) dentro de um
@@ -23,11 +25,22 @@ const ALTURA_MAXIMA = 1100
 
 export function Formulario() {
   const [altura, setAltura] = useState(ALTURA_MINIMA)
+  const [src, setSrc] = useState<string>()
+  const iframe = useRef<HTMLIFrameElement>(null)
+  const leadEnviado = useRef(false)
 
   useEffect(() => {
+    setSrc(urlFormulario(ORIGEM, SLUG, window.location.search))
     const aoReceber = (evento: MessageEvent) => {
-      if (evento.origin !== ORIGEM) return
+      if (!mensagemDoFormulario(evento, ORIGEM, iframe.current?.contentWindow, SLUG)) return
       const dado = evento.data as { tipo?: string; slug?: string; altura?: number } | null
+      if (dado?.tipo === 'hediz-fluxo-concluido') {
+        if (!leadEnviado.current) {
+          leadEnviado.current = true
+          rastrear('Lead')
+        }
+        return
+      }
       if (dado?.tipo !== 'hediz-fluxo-altura' || dado.slug !== SLUG) return
       const pedida = Number(dado.altura)
       if (!Number.isFinite(pedida)) return
@@ -39,7 +52,8 @@ export function Formulario() {
 
   return (
     <iframe
-      src={`${ORIGEM}/f/${SLUG}?embed=container`}
+      ref={iframe}
+      src={src}
       title="Formulário para solicitar uma proposta da Nex Envios"
       allow="clipboard-write"
       style={{ height: altura }}
