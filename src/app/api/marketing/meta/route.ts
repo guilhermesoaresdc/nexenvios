@@ -11,9 +11,7 @@ export async function POST(req: NextRequest) {
   const permitidas = new Set([ORIGEM, 'https://nexenvios.com.br'])
   if (process.env.NODE_ENV === 'development') permitidas.add(req.nextUrl.origin)
   if (!origem || !permitidas.has(origem)) return new NextResponse(null, { status: 403 })
-  if (req.cookies.get(CONSENTIMENTO_COOKIE)?.value !== 'granted') {
-    return new NextResponse(null, { status: 204 })
-  }
+  const usarCookies = req.cookies.get(CONSENTIMENTO_COOKIE)?.value === 'granted'
   if (!req.headers.get('content-type')?.startsWith('application/json')) {
     return new NextResponse(null, { status: 415 })
   }
@@ -27,9 +25,18 @@ export async function POST(req: NextRequest) {
     return new NextResponse(null, { status: 400 })
   }
   if (!entrada.success || !req.headers.get('user-agent')) return new NextResponse(null, { status: 400 })
+  if (!usarCookies && entrada.data.event_name !== 'Lead') {
+    return new NextResponse(null, { status: 204 })
+  }
+  // Sem aceite, não encaminhar identificadores de cookies, mesmo que o cliente
+  // os inclua por engano ou a preferência tenha mudado entre envio e retry.
+  const evento = usarCookies ? entrada.data : {
+    event_name: entrada.data.event_name,
+    event_id: entrada.data.event_id,
+  }
   try {
     if (await excedeuLimite(req.headers)) return new NextResponse(null, { status: 429 })
-    const resultado = await enviarMeta(entrada.data, req.headers)
+    const resultado = await enviarMeta(evento, req.headers)
     return NextResponse.json(resultado, {
       status: resultado.ok ? 200 : 502,
       headers: { 'Cache-Control': 'no-store' },

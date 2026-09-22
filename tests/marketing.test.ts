@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { mensagemDoFormulario, urlFormulario } from '@/lib/marketing/config'
 import { montarEvento, esquemaEvento } from '@/lib/marketing/servidor'
+import * as servidor from '@/lib/marketing/servidor'
 
 vi.mock('@/db', () => ({ sql: vi.fn() }))
 
@@ -61,12 +62,27 @@ describe('controle da rota pública', () => {
       body: JSON.stringify(body),
     }))
   }
-  it('não chama a Meta antes de consentimento ou após recusa', async () => {
+  it('não envia eventos de navegação antes do aceite ou após recusa', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
     for (const cookie of ['', 'nex_marketing=denied']) {
-      expect((await chamar({ origin: 'https://www.nexenvios.com.br', cookie })).status).toBe(204)
+      for (const event_name of ['PageView', 'ViewContent', 'Contact']) {
+        expect((await chamar({ origin: 'https://www.nexenvios.com.br', cookie }, { ...entrada, event_name })).status).toBe(204)
+      }
     }
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it.each(['', 'nex_marketing=denied'])('aceita Lead e remove identificadores de cookies sem aceite (%s)', async (cookie) => {
+    vi.spyOn(servidor, 'excedeuLimite').mockResolvedValue(false)
+    const enviar = vi.spyOn(servidor, 'enviarMeta').mockResolvedValue({ ok: true, events_received: 1 })
+    const resposta = await chamar({ origin: 'https://www.nexenvios.com.br', cookie })
+    expect(resposta.status).toBe(200)
+    expect(enviar).toHaveBeenCalledWith({ event_name: 'Lead', event_id: entrada.event_id }, expect.any(Headers))
+  })
+  it('preserva identificadores para deduplicação e atribuição quando há aceite', async () => {
+    vi.spyOn(servidor, 'excedeuLimite').mockResolvedValue(false)
+    const enviar = vi.spyOn(servidor, 'enviarMeta').mockResolvedValue({ ok: true, events_received: 1 })
+    expect((await chamar({ origin: 'https://www.nexenvios.com.br', cookie: 'nex_marketing=granted' })).status).toBe(200)
+    expect(enviar).toHaveBeenCalledWith(entrada, expect.any(Headers))
   })
   it('recusa origens externas e payloads inválidos antes de acessar credenciais', async () => {
     expect((await chamar({ origin: 'https://externo.test', cookie: 'nex_marketing=granted' })).status).toBe(403)

@@ -44,15 +44,37 @@ describe('Pixel e API no navegador', () => {
     expect(segunda.fbp).toBe(primeira.fbp)
     expect(segunda.fbc).toBe(primeira.fbc)
   })
-  it('revoga os dois canais e remove cookies de publicidade', async () => {
+  it('revoga os eventos de navegação e remove cookies de publicidade', async () => {
     cookies.set('nex_marketing', 'granted')
     cookies.set('_fbp', 'fb.1.1789999999000.123')
     const { escolherConsentimento, rastrear } = await import('@/lib/marketing/cliente')
     escolherConsentimento(false)
     expect(fbq).toHaveBeenCalledWith('consent', 'revoke')
     expect(cookies.has('_fbp')).toBe(false)
-    expect(rastrear('Lead')).toBe(false)
+    expect(rastrear('PageView')).toBe(false)
+    expect(rastrear('Contact')).toBe(false)
     expect(fetch).not.toHaveBeenCalled()
+  })
+  it.each([undefined, 'denied'])('envia Lead sem Pixel ou cookies quando a preferência é %s', async (preferencia) => {
+    if (preferencia) cookies.set('nex_marketing', preferencia)
+    // Mesmo cookies remanescentes não devem entrar no evento sem aceite.
+    cookies.set('_fbp', 'fb.1.1789999999000.123')
+    cookies.set('_fbc', 'fb.1.1789999999000.cliqueAnterior')
+    const anteriores = new Map(cookies)
+    const { rastrear } = await import('@/lib/marketing/cliente')
+    const id = '12f1fb61-33d2-4131-8914-580ff2936dcb'
+    expect(rastrear('Lead', id)).toBe(true)
+    expect(fbq).not.toHaveBeenCalled()
+    expect(cookies).toEqual(anteriores)
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]?.[1]?.body as string)).toEqual({ event_name: 'Lead', event_id: id })
+  })
+  it('repete falha transitória de Lead sem aceite preservando o ID', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ status: 503 } as Response)
+    const { rastrear } = await import('@/lib/marketing/cliente')
+    rastrear('Lead')
+    await Promise.resolve()
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.body).toBe(vi.mocked(fetch).mock.calls[1]?.[1]?.body)
   })
   it('não envia eventos das páginas privadas', async () => {
     cookies.set('nex_marketing', 'granted')

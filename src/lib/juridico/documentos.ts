@@ -34,11 +34,11 @@ export const PRIVACIDADE: Documento = {
   rota: '/privacidade',
   titulo: 'Política de Privacidade',
   descricao: 'Como a Nex Envios coleta, utiliza, compartilha e protege dados pessoais, nos termos da Lei Geral de Proteção de Dados (LGPD).',
-  versao: '1.1',
-  atualizadoEm: '2026-09-02',
+  versao: '1.2',
+  atualizadoEm: '2026-09-22',
   fonte: `﻿# Política de Privacidade — Nex Envios
 
-**Versão 1.1 · Vigente desde 2 de setembro de 2026**
+**Versão 1.2 · Vigente desde 22 de setembro de 2026**
 
 Esta Política descreve como **NEX CREATIVE LTDA**, inscrita no CNPJ sob o nº **58.132.444/0001-60**, com sede na Rua Dr. Leandro, 175, Sala 05, Centro, Várzea Alegre/CE, CEP 63.540-000 ("**Nex Envios**", "nós"), coleta, utiliza, compartilha e protege dados pessoais, em conformidade com a Lei nº 13.709/2018 — Lei Geral de Proteção de Dados Pessoais (LGPD).
 
@@ -110,6 +110,8 @@ Alguns fornecedores de tecnologia, incluindo a Meta (WhatsApp Business Platform)
 ## 6. Cookies e tecnologias similares
 
 Utilizamos cookies para: (i) manter sua sessão ativa — cookies essenciais; (ii) medir desempenho e uso do site — cookies analíticos; (iii) exibir anúncios relevantes dentro e fora do site — cookies de publicidade. Você pode gerenciar ou bloquear cookies nas configurações do seu navegador, ciente de que o bloqueio de cookies essenciais pode comprometer funcionalidades da Plataforma.
+
+Na página de apresentação da Nex Envios, o Pixel da Meta e seus cookies dependem da opção “Permitir”. A conclusão de um pedido de proposta pelo formulário incorporado também é informada à Meta pela API de Conversões, mesmo sem permitir esses cookies. Nesse caso, o envio contém o evento de conclusão, um identificador aleatório do evento, horário, endereço da página, IP e informações técnicas do navegador; não utiliza os identificadores de cookies da Meta nem inclui as respostas do formulário. Essa comunicação serve para medir os pedidos de proposta gerados pela página.
 
 ## 7. Prazo de retenção
 

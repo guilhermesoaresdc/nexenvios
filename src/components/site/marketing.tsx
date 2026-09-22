@@ -50,6 +50,7 @@ export function Marketing() {
   return aberto ? (
     <section aria-label="Preferências de cookies" className="fixed inset-x-4 bottom-4 z-[80] mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-800 shadow-xl">
       <p>Podemos usar cookies da Meta para medir nossos anúncios e suas visitas? Você pode alterar sua escolha em “Cookies”. <a href="/privacidade" className="underline">Política de Privacidade</a></p>
+      <p className="mt-2 text-xs text-slate-600">A conclusão de propostas é informada à Meta pelo servidor mesmo sem cookies, com IP e informações do navegador.</p>
       <div className="mt-4 flex justify-end gap-3">
         <button type="button" onClick={() => escolher(false)} className="rounded-lg border border-slate-300 px-4 py-2 font-semibold">Recusar</button>
         <button type="button" onClick={() => escolher(true)} className="rounded-lg bg-blue px-4 py-2 font-semibold text-white">Permitir</button>

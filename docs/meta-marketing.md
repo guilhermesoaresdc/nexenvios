@@ -6,7 +6,7 @@ Pixel/dataset público: `1897881374510392`. A integração atua somente na landi
 | --- | --- |
 | PageView | Abertura da landing, após permitir os cookies de marketing |
 | ViewContent | Formulário de proposta visível |
-| Lead | Mensagem `hediz-fluxo-concluido` enviada pelo iframe do fluxo configurado |
+| Lead | Mensagem `hediz-fluxo-concluido` enviada pelo iframe do fluxo configurado, inclusive sem aceite de cookies |
 | Contact | Clique no link de WhatsApp da landing |
 
 O Lead exige origem, janela do iframe e slug correspondentes. Mensagens repetidas
@@ -24,9 +24,15 @@ usar `META_CAPI_ACCESS_TOKEN` no ambiente. Nunca incluir o valor no repositório
 no log, em `NEXT_PUBLIC_*` ou no HTML. As roles `anon` e `authenticated` não
 possuem acesso ao Vault.
 
-Sem aceite, ou após recusa, a nova integração não envia eventos. O botão Cookies
-reabre a preferência. O formulário continua funcionando. A integração existente
-do próprio CRM dentro do iframe é gerenciada separadamente no CRM.
+Sem aceite, ou após recusa, somente o Lead é enviado pela API de Conversões.
+Nesse caso o navegador não carrega o Pixel nem lê/cria `_fbp` ou `_fbc`, e a
+rota remove esses identificadores se aparecerem no corpo da requisição. O evento
+usa apenas ID aleatório, horário, URL canônica, IP e user agent; não é um envio
+anônimo. A atribuição pela Meta pode ser menos precisa sem identificadores de
+campanha. PageView, ViewContent e Contact continuam dependendo do aceite.
+O aviso de cookies e a Política de Privacidade descrevem esse comportamento.
+O botão Cookies reabre a preferência. A integração existente do próprio CRM
+dentro do iframe é gerenciada separadamente no CRM.
 
 ## Verificação
 
@@ -39,7 +45,7 @@ Para testar a CAPI sem alimentar os relatórios reais, configurar temporariament
 `META_TEST_EVENT_CODE` com o código fornecido pela aba Testar Eventos e removê-lo
 ao terminar. Sem esse código, somente testar PageView; não simular leads reais.
 
-Um bloqueador do Pixel ainda permite o envio pelo endpoint do site, desde que
-haja consentimento. A conclusão do formulário depende do sinal no navegador:
+Um bloqueador do Pixel ainda permite o envio pelo endpoint do site. Eventos de
+navegação dependem do aceite; o Lead funciona sem cookies. A conclusão do formulário depende do sinal no navegador:
 se a aba fechar antes de recebê-lo, o Lead pode não ser medido. Esta integração
 não altera o backend do CRM nem configura retorno de vendas/offline.

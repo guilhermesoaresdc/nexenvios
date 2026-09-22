@@ -84,14 +84,18 @@ function identificadores() {
 }
 
 export function rastrear(evento: EventoMeta, eventId = crypto.randomUUID()): boolean {
-  if (!consentiu()) return false
+  const usarCookies = consentiu()
+  // A conclusão da proposta é medida pelo servidor mesmo sem cookies.
+  if (!usarCookies && evento !== 'Lead') return false
   // Só a landing pública; nunca coletar páginas de clientes ou da administração.
   if (location.pathname !== '/') return false
   if (!['www.nexenvios.com.br', 'nexenvios.com.br'].includes(location.hostname) &&
       process.env.NODE_ENV !== 'development') return false
-  const ids = identificadores()
-  iniciarPixel()
-  window.fbq?.('trackSingle', META_PIXEL_ID, evento, DADOS_EVENTO[evento], { eventID: eventId })
+  const ids = usarCookies ? identificadores() : {}
+  if (usarCookies) {
+    iniciarPixel()
+    window.fbq?.('trackSingle', META_PIXEL_ID, evento, DADOS_EVENTO[evento], { eventID: eventId })
+  }
   const corpo = JSON.stringify({ event_name: evento, event_id: eventId, ...ids })
   // Mesmo ID em ambos os canais e no retry: a Meta deduplica o par.
   const enviar = () => fetch('/api/marketing/meta', {
@@ -99,7 +103,7 @@ export function rastrear(evento: EventoMeta, eventId = crypto.randomUUID()): boo
     body: corpo, keepalive: true, credentials: 'same-origin',
   })
   void enviar().then((r) => {
-    if (r.status >= 500 && consentiu()) return enviar()
+    if (r.status >= 500 && (evento === 'Lead' || consentiu())) return enviar()
   }).catch(() => { /* Falha de marketing não interfere no formulário. */ })
   return true
 }
