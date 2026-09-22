@@ -49,11 +49,18 @@ export function Marketing() {
 
   return aberto ? (
     <section aria-label="Preferências de cookies" className="fixed inset-x-4 bottom-4 z-[80] mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-800 shadow-xl">
-      <p>Podemos usar cookies da Meta para medir nossos anúncios e suas visitas? Você pode alterar sua escolha em “Cookies”. <a href="/privacidade" className="underline">Política de Privacidade</a></p>
-      <p className="mt-2 text-xs text-slate-600">A conclusão de propostas é informada à Meta pelo servidor mesmo sem cookies, com IP e informações do navegador.</p>
+      <p>Podemos usar cookies para medir visitas e melhorar nossos anúncios?</p>
+      <details className="mt-2 text-xs text-slate-600">
+        <summary className="w-fit cursor-pointer rounded underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue">Ver detalhes</summary>
+        <div className="mt-3 space-y-2">
+          <p>Os cookies da Meta ajudam a medir visitas e anúncios. Você pode alterar sua escolha a qualquer momento no botão “Cookies”.</p>
+          <p>A conclusão de propostas é informada à Meta pelo servidor mesmo sem cookies, com IP e informações do navegador.</p>
+          <a href="/privacidade" className="inline-block underline">Política de Privacidade</a>
+        </div>
+      </details>
       <div className="mt-4 flex justify-end gap-3">
         <button type="button" onClick={() => escolher(false)} className="rounded-lg border border-slate-300 px-4 py-2 font-semibold">Recusar</button>
-        <button type="button" onClick={() => escolher(true)} className="rounded-lg bg-blue px-4 py-2 font-semibold text-white">Permitir</button>
+        <button type="button" onClick={() => escolher(true)} className="rounded-lg bg-blue px-4 py-2 font-semibold text-white">Aceitar cookies</button>
       </div>
     </section>
   ) : (
